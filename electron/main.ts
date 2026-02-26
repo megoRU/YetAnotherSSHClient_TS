@@ -3,9 +3,12 @@ import path from 'node:path'
 import { Client, PseudoTtyOptions } from 'ssh2'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import os from 'node:os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const configPath = path.join(app.getPath('userData'), 'config.json')
+const configPath = os.platform() === 'win32'
+  ? 'C:\\Users\\savin\\.minissh_config.json'
+  : path.join(os.homedir(), '.minissh_config.json')
 
 const DEFAULT_CONFIG = {
   "terminalFontName": "JetBrains Mono",
@@ -110,6 +113,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1254,
     height: 909,
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
@@ -188,4 +193,20 @@ ipcMain.on('ssh-close', (_, id) => {
   sshClients.get(id)?.end()
   shellStreams.delete(id)
   sshClients.delete(id)
+})
+
+ipcMain.on('window-minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow?.maximize()
+  }
+})
+
+ipcMain.on('window-close', () => {
+  mainWindow?.close()
 })
