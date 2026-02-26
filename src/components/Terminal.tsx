@@ -98,7 +98,8 @@ export const TerminalComponent: React.FC<Props> = ({ theme, config }) => {
       wsRef.current.close();
     }
 
-    const ws = new WebSocket('ws://localhost:3001');
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
     wsRef.current = ws;
 
     ws.onopen = () => {
