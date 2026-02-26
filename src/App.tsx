@@ -1,81 +1,229 @@
 import { useState, useEffect } from 'react';
 import { TerminalComponent } from './components/Terminal';
+import { Search, Server, Settings, HelpCircle, X, Plus } from 'lucide-react';
 import './styles/light.css';
 import './styles/dark.css';
 import './styles/gruvbox-light.css';
 import './App.css';
 
-type Theme = 'light' | 'dark' | 'gruvbox-light';
+const { ipcRenderer } = window as any;
 
 interface SSHConfig {
+  name: string;
+  user: string;
   host: string;
-  port: number;
-  username: string;
+  port: string;
   password?: string;
+  identityFile?: string;
+  osPrettyName?: string;
+}
+
+interface AppConfig {
+  terminalFontName: string;
+  terminalFontSize: number;
+  uiFontName: string;
+  uiFontSize: number;
+  theme: string;
+  favorites: SSHConfig[];
+}
+
+interface Tab {
+  id: number;
+  type: 'home' | 'ssh' | 'settings';
+  title: string;
+  config?: SSHConfig;
 }
 
 function App() {
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [config, setConfig] = useState<SSHConfig | null>(null);
-  const [form, setForm] = useState<SSHConfig>({
-    host: 'localhost',
-    port: 22,
-    username: 'user',
-    password: ''
-  });
+  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [activeTabId, setActiveTabId] = useState<number>(0);
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 0, type: 'home', title: 'Connect' }]);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    document.body.className = theme;
-  }, [theme]);
+    ipcRenderer.invoke('get-config').then(setConfig);
+  }, []);
 
-  const handleConnect = (e: React.FormEvent) => {
-    e.preventDefault();
-    setConfig({ ...form });
+  useEffect(() => {
+    if (config) {
+      document.body.className = config.theme.toLowerCase().replace(' ', '-');
+      document.body.style.fontFamily = config.uiFontName;
+      document.body.style.fontSize = `${config.uiFontSize}px`;
+    }
+  }, [config]);
+
+  if (!config) return <div>Loading...</div>;
+
+  const addTab = (type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
+    const id = Date.now();
+    setTabs([...tabs, { id, type, title, config: sshConfig }]);
+    setActiveTabId(id);
   };
 
-  return (
-    <div style={{ padding: '20px' }}>
-      <h1>TypeScript SSH Client</h1>
+  const closeTab = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (tabs.length === 1) return;
+    const newTabs = tabs.filter(t => t.id !== id);
+    setTabs(newTabs);
+    if (activeTabId === id) setActiveTabId(newTabs[newTabs.length - 1].id);
+  };
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <label>Theme:</label>
-        <select value={theme} onChange={e => setTheme(e.target.value as Theme)}>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          <option value="gruvbox-light">Gruvbox Light</option>
-        </select>
+  const filteredFavorites = config.favorites.filter(f =>
+    f.name.toLowerCase().includes(search.toLowerCase()) ||
+    f.host.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="app-container" style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {/* Sidebar */}
+      <div className="sidebar" style={{ width: '250px', borderRight: '1px solid rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '15px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px', opacity: 0.6 }}>ИЗБРАННОЕ</div>
+          <div className="search-box" style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+            <input
+              placeholder="Поиск..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '6px 6px 6px 28px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(0,0,0,0.05)' }}
+            />
+          </div>
+        </div>
+        <div className="favorites-list" style={{ flex: 1, overflowY: 'auto' }}>
+          {filteredFavorites.map((fav, i) => (
+            <div
+              key={i}
+              className="fav-item"
+              onClick={() => addTab('ssh', fav.name, fav)}
+              style={{ padding: '8px 15px', cursor: 'pointer', fontSize: '13px' }}
+            >
+              {fav.name}
+            </div>
+          ))}
+        </div>
+        <div className="sidebar-footer" style={{ padding: '10px', borderTop: '1px solid rgba(0,0,0,0.1)', display: 'flex', gap: '15px' }}>
+          <Settings size={18} style={{ cursor: 'pointer' }} onClick={() => addTab('settings', 'Settings')} />
+          <HelpCircle size={18} style={{ cursor: 'pointer' }} />
+        </div>
       </div>
 
-      <form onSubmit={handleConnect} style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <input
-          placeholder="Host"
-          value={form.host}
-          onChange={e => setForm({ ...form, host: e.target.value })}
-          required
-        />
-        <input
-          type="number"
-          placeholder="Port"
-          value={form.port}
-          onChange={e => setForm({ ...form, port: parseInt(e.target.value) || 22 })}
-          required
-        />
-        <input
-          placeholder="Username"
-          value={form.username}
-          onChange={e => setForm({ ...form, username: e.target.value })}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={e => setForm({ ...form, password: e.target.value })}
-        />
-        <button type="submit">Connect</button>
-      </form>
+      {/* Main Content */}
+      <div className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Tab Bar */}
+        <div className="tab-bar" style={{ height: '35px', display: 'flex', background: 'rgba(0,0,0,0.05)', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+          {tabs.map(tab => (
+            <div
+              key={tab.id}
+              className={`tab ${activeTabId === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTabId(tab.id)}
+              style={{
+                padding: '0 15px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                borderRight: '1px solid rgba(0,0,0,0.1)',
+                background: activeTabId === tab.id ? 'var(--bg-color)' : 'transparent',
+                fontSize: '12px'
+              }}
+            >
+              {tab.title}
+              {tabs.length > 1 && <X size={12} onClick={(e) => closeTab(e, tab.id)} />}
+            </div>
+          ))}
+          <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => addTab('home', 'Connect')}>
+            <Plus size={14} />
+          </div>
+        </div>
 
-      <TerminalComponent theme={theme} config={config} />
+        {/* Tab Content */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          {tabs.map(tab => (
+            <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%', width: '100%' }}>
+              {tab.type === 'home' && (
+                <div style={{ padding: '40px', textAlign: 'center' }}>
+                  <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>Выберите сервер для подключения</h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px' }}>
+                    {config.favorites.map((fav, i) => (
+                      <div
+                        key={i}
+                        className="fav-card"
+                        onClick={() => addTab('ssh', fav.name, fav)}
+                        style={{
+                          padding: '30px',
+                          borderRadius: '15px',
+                          background: 'rgba(0,0,0,0.05)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '15px'
+                        }}
+                      >
+                        <div style={{ width: '60px', height: '60px', borderRadius: '12px', background: '#c81e51', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                          <Server size={32} />
+                        </div>
+                        <div style={{ fontWeight: '500' }}>{fav.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {tab.type === 'ssh' && tab.config && (
+                <TerminalComponent
+                  id={tab.id}
+                  theme={config.theme}
+                  config={tab.config}
+                  terminalFontName={config.terminalFontName}
+                  terminalFontSize={config.terminalFontSize}
+                />
+              )}
+              {tab.type === 'settings' && (
+                <div style={{ padding: '40px', maxWidth: '600px' }}>
+                  <h2>Настройки</h2>
+                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px' }}>Тема:</label>
+                      <select
+                        value={config.theme}
+                        onChange={e => {
+                          const newConfig = { ...config, theme: e.target.value };
+                          setConfig(newConfig);
+                          ipcRenderer.invoke('save-config', newConfig);
+                        }}
+                        style={{ width: '100%', padding: '8px' }}
+                      >
+                        <option value="Light">Light</option>
+                        <option value="Dark">Dark</option>
+                        <option value="Gruvbox Light">Gruvbox Light</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px' }}>Шрифт терминала:</label>
+                      <input
+                        value={config.terminalFontName}
+                        onChange={e => setConfig({ ...config, terminalFontName: e.target.value })}
+                        onBlur={() => ipcRenderer.invoke('save-config', config)}
+                        style={{ width: '100%', padding: '8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px' }}>Размер шрифта терминала:</label>
+                      <input
+                        type="number"
+                        value={config.terminalFontSize}
+                        onChange={e => setConfig({ ...config, terminalFontSize: parseInt(e.target.value) || 12 })}
+                        onBlur={() => ipcRenderer.invoke('save-config', config)}
+                        style={{ width: '100%', padding: '8px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,42 +1,52 @@
 #root {
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.app-container {
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.sidebar {
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.fav-item {
+  transition: background-color 0.2s;
+  border-radius: 4px;
+  margin: 2px 8px;
 }
 
-.card {
-  padding: 2em;
+.fav-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
-.read-the-docs {
-  color: #888;
+.tab {
+  transition: background-color 0.2s;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  height: 100%;
+}
+
+.tab.active {
+  font-weight: bold;
+}
+
+.fav-card {
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.fav-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+input, select {
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
 }
