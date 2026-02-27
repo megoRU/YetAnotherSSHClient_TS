@@ -93,8 +93,12 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   })
 
   sshClient.on('error', (err: any) => {
-    if (err.code === 'ECONNRESET' || err.message?.includes('Connection lost before handshake')) {
-      console.warn('SSH client warning (suppressed):', err.message);
+    const msg = err.message || '';
+    if (err.code === 'ECONNRESET' ||
+        msg.includes('Connection lost before handshake') ||
+        msg.includes('ECONNRESET') ||
+        msg.includes('Socket is closed')) {
+      console.warn('SSH client warning (suppressed):', msg || err.code);
       return;
     }
     console.error('SSH client error:', err);

@@ -35,6 +35,13 @@ interface Tab {
   config?: SSHConfig;
 }
 
+// Helper to encode string to base64 supporting UTF-8
+const toBase64 = (str: string) => {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  ));
+};
+
 function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [activeTabId, setActiveTabId] = useState<number>(0);
@@ -69,18 +76,18 @@ function App() {
   if (!config) return <div>Loading...</div>;
 
   const addTab = (type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setTabs(prev => [...prev, { id, type, title, config: sshConfig }]);
     setActiveTabId(id);
   };
 
   const handleFormConnect = (sshConfig: SSHConfig) => {
     const name = sshConfig.name || `${sshConfig.user}@${sshConfig.host}`;
-    const newTabId = Date.now();
+    const newTabId = Date.now() + Math.random();
     // Encode password to base64 as the backend expects it
     const configWithEncodedPassword = {
       ...sshConfig,
-      password: btoa(sshConfig.password || '')
+      password: toBase64(sshConfig.password || '')
     };
 
     setTabs(prev => {
@@ -96,7 +103,7 @@ function App() {
     const newFavorite = {
       ...sshConfig,
       name,
-      password: btoa(sshConfig.password || '')
+      password: toBase64(sshConfig.password || '')
     };
     const newConfig = {
       ...config,
@@ -290,6 +297,7 @@ function App() {
                     config={tab.config}
                     terminalFontName={config.terminalFontName}
                     terminalFontSize={config.terminalFontSize}
+                    visible={activeTabId === tab.id}
                   />
                 )}
                 {tab.type === 'connection' && (

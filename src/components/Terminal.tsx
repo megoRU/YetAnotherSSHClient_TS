@@ -13,6 +13,7 @@ interface Props {
   config: any;
   terminalFontName: string;
   terminalFontSize: number;
+  visible?: boolean;
 }
 
 const getXtermTheme = (theme: string) => {
@@ -39,7 +40,7 @@ const getXtermTheme = (theme: string) => {
   }
 };
 
-export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminalFontName, terminalFontSize }) => {
+export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminalFontName, terminalFontSize, visible }) => {
   const termRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -123,9 +124,11 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
       xtermRef.current.options.theme = getXtermTheme(theme);
       xtermRef.current.options.fontFamily = terminalFontName;
       xtermRef.current.options.fontSize = terminalFontSize;
-      fitAddonRef.current?.fit();
+      if (visible) {
+        fitAddonRef.current?.fit();
+      }
     }
-  }, [theme, terminalFontName, terminalFontSize]);
+  }, [theme, terminalFontName, terminalFontSize, visible]);
 
   return (
     <div className="terminal-container" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
