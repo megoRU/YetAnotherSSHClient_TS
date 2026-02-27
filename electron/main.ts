@@ -73,6 +73,7 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   sshClients.set(id, sshClient)
 
   sshClient.on('ready', () => {
+    console.log(`[SSH] Connection ready for ID ${id} (${config.user}@${config.host}:${config.port || 22})`);
     event.reply(`ssh-status-${id}`, 'SSH Connection Established')
 
     const pty: PseudoTtyOptions = {
@@ -98,7 +99,7 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   })
 
   sshClient.on('error', (err: any) => {
-    console.error(`SSH client error [id: ${id}, host: ${config.host}]:`, err);
+    console.error(`[SSH] Connection error [ID: ${id}, Host: ${config.host}]:`, err);
     event.reply(`ssh-error-${id}`, err.message)
     // Clean up if error is fatal
     sshClients.get(id)?.end()
@@ -106,11 +107,15 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
     sshClients.delete(id)
   })
 
+  const password = Buffer.from(config.password || '', 'base64').toString('utf8');
+  console.log(`[SSH] Initiating connection [ID: ${id}]`);
+  console.log(`[SSH] Config: user=${config.user}, host=${config.host}, port=${config.port || 22}, password_len=${password.length}`);
+
   sshClient.connect({
     host: config.host,
     port: parseInt(config.port) || 22,
     username: config.user,
-    password: Buffer.from(config.password || '', 'base64').toString('utf8'),
+    password: password,
     readyTimeout: 20000,
   })
 })

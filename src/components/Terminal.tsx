@@ -52,6 +52,11 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
     if (!xtermRef.current || connectionInitiatedRef.current) return;
     connectionInitiatedRef.current = true;
     setStatus('Connecting...');
+    console.log(`[SSH] Renderer requesting connection [ID: ${id}]`, {
+      user: config.user,
+      host: config.host,
+      port: config.port
+    });
     ipcRenderer.send('ssh-connect', { id, config, cols: xtermRef.current.cols, rows: xtermRef.current.rows });
   };
 
