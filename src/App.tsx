@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { TerminalComponent } from './components/Terminal';
 import { ConnectionForm } from './components/ConnectionForm';
-import { Search, Server, Settings, X, Plus, Minus, Square } from 'lucide-react';
+import { Search, Server, X, Plus, Minus, Square } from 'lucide-react';
 import './styles/light.css';
 import './styles/dark.css';
 import './styles/gruvbox-light.css';
@@ -211,7 +211,6 @@ function App() {
       color: 'inherit',
       fontWeight: 'bold'
     }}>
-      Loading...
     </div>
   );
 
@@ -264,7 +263,7 @@ function App() {
         userSelect: 'none'
       }} ref={menuRef}>
         <div style={{ display: 'flex', gap: '0', ['WebkitAppRegion' as any]: 'no-drag', alignItems: 'center', height: '100%', paddingLeft: '10px' }}>
-          <div style={{ fontWeight: 'bold', marginRight: '15px' }}>YA_SSH</div>
+          <img src="./icons/icon32.png" style={{ width: '20px', height: '20px', marginRight: '15px' }} alt="Logo" />
 
           <div style={{ position: 'relative', height: '100%' }}>
             <div
@@ -348,9 +347,6 @@ function App() {
                 {fav.name}
               </div>
             ))}
-          </div>
-          <div className="sidebar-footer" style={{ padding: '10px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '15px' }}>
-            <Settings size={18} style={{ cursor: 'pointer' }} onClick={() => addTab('settings', 'Settings')} />
           </div>
         </div>
 
