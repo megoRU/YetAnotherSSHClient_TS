@@ -6,9 +6,7 @@ import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const configPath = os.platform() === 'win32'
-  ? 'C:\\Users\\savin\\.minissh_config.json'
-  : path.join(os.homedir(), '.minissh_config.json')
+const configPath = path.join(os.homedir(), '.minissh_config.json')
 
 const DEFAULT_CONFIG = {
   "terminalFontName": "JetBrains Mono",
@@ -16,80 +14,7 @@ const DEFAULT_CONFIG = {
   "uiFontName": "JetBrains Mono",
   "uiFontSize": 12,
   "theme": "Gruvbox Light",
-  "favorites": [
-    {
-      "name": "AEZA_SWE",
-      "user": "root",
-      "host": "77.110.97.210",
-      "port": "12222",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 12 (bookworm)"
-    },
-    {
-      "name": "FirstVDS",
-      "user": "root",
-      "host": "155.212.170.171",
-      "port": "22",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 13 (trixie)"
-    },
-    {
-      "name": "FirstVDS_2",
-      "user": "root",
-      "host": "83.220.171.209",
-      "port": "22",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 13 (trixie)"
-    },
-    {
-      "name": "VEESP_LV",
-      "user": "root",
-      "host": "45.43.77.237",
-      "port": "12222",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 13 (trixie)"
-    },
-    {
-      "name": "4VSP_GE",
-      "user": "root",
-      "host": "85.208.139.71",
-      "port": "12222",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 12 (bookworm)"
-    },
-    {
-      "name": "WAICORE_GE",
-      "user": "root",
-      "host": "178.17.50.241",
-      "port": "12222",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 12 (bookworm)"
-    },
-    {
-      "name": "AEZA",
-      "user": "root",
-      "host": "89.185.85.197",
-      "port": "22",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 12 (bookworm)"
-    },
-    {
-      "name": "beget",
-      "user": "root",
-      "host": "5.35.87.223",
-      "port": "22",
-      "password": "",
-      "identityFile": "",
-      "osPrettyName": "Debian GNU/Linux 13 (trixie)"
-    }
-  ]
+  "favorites": []
 }
 
 function loadConfig() {

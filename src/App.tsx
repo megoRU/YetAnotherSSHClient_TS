@@ -37,7 +37,7 @@ interface Tab {
 function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [activeTabId, setActiveTabId] = useState<number>(0);
-  const [tabs, setTabs] = useState<Tab[]>([{ id: 0, type: 'home', title: 'Connect' }]);
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 0, type: 'home', title: 'Главная' }]);
   const [search, setSearch] = useState('');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -104,43 +104,43 @@ function App() {
 
           <div style={{ position: 'relative' }}>
             <div
-              style={{ cursor: 'pointer', padding: '5px 10px' }}
+              style={{ fontWeight: 'bold', cursor: 'pointer', padding: '5px 10px' }}
               onClick={() => setOpenMenu(openMenu === 'connect' ? null : 'connect')}
             >
               Подключение
             </div>
             {openMenu === 'connect' && (
               <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: '180px', padding: '5px 0' }}>
-                <div style={{ padding: '8px 15px', cursor: 'pointer' }} onClick={() => { addTab('home', 'Connect'); setOpenMenu(null); }}>Новое подключение</div>
-                <div style={{ padding: '8px 15px', cursor: 'pointer' }}>Добавить в избранное</div>
+                <div style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }} onClick={() => { addTab('home', 'Главная'); setOpenMenu(null); }}>Новое подключение</div>
+                <div style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }}>Добавить в избранное</div>
               </div>
             )}
           </div>
 
           <div style={{ position: 'relative' }}>
             <div
-              style={{ cursor: 'pointer', padding: '5px 10px' }}
+              style={{ fontWeight: 'bold', cursor: 'pointer', padding: '5px 10px' }}
               onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
             >
               Настройки
             </div>
             {openMenu === 'settings' && (
               <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: '180px', padding: '5px 0' }}>
-                <div style={{ padding: '8px 15px', cursor: 'pointer' }} onClick={() => { addTab('settings', 'Settings'); setOpenMenu(null); }}>Параметры</div>
+                <div style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }} onClick={() => { addTab('settings', 'Параметры'); setOpenMenu(null); }}>Параметры</div>
               </div>
             )}
           </div>
 
           <div style={{ position: 'relative' }}>
             <div
-              style={{ cursor: 'pointer', padding: '5px 10px' }}
+              style={{ fontWeight: 'bold', cursor: 'pointer', padding: '5px 10px' }}
               onClick={() => setOpenMenu(openMenu === 'help' ? null : 'help')}
             >
               Справка
             </div>
             {openMenu === 'help' && (
               <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: '180px', padding: '5px 0' }}>
-                <div style={{ padding: '8px 15px', cursor: 'pointer' }}>О программе</div>
+                <div style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }}>О программе</div>
               </div>
             )}
           </div>
@@ -160,13 +160,13 @@ function App() {
         <div className="sidebar" style={{ width: '250px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '15px' }}>
             <div style={{ fontWeight: 'bold', marginBottom: '10px', opacity: 0.6 }}>ИЗБРАННОЕ</div>
-            <div className="search-box" style={{ position: 'relative' }}>
+            <div className="search-box" style={{ position: 'relative', width: '100%' }}>
               <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
               <input
-                placeholder="Поиск..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', padding: '6px 6px 6px 28px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.05)' }}
+                  placeholder="Поиск..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 6px 6px 28px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.05)' }}
               />
             </div>
           </div>
@@ -176,7 +176,7 @@ function App() {
                 key={i}
                 className="fav-item"
                 onClick={() => addTab('ssh', fav.name, fav)}
-                style={{ padding: '8px 15px', cursor: 'pointer' }}
+                style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }}
               >
                 {fav.name}
               </div>
@@ -211,7 +211,7 @@ function App() {
                 {tabs.length > 1 && <X size={12} onClick={(e) => closeTab(e, tab.id)} />}
               </div>
             ))}
-            <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => addTab('home', 'Connect')}>
+            <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => addTab('home', 'Главная')}>
               <Plus size={14} />
             </div>
           </div>
@@ -222,7 +222,7 @@ function App() {
               <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%', width: '100%' }}>
                 {tab.type === 'home' && (
                   <div style={{ padding: '40px', textAlign: 'center' }}>
-                    <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>Выберите сервер для подключения</h2>
+                    <h2 style={{  marginBottom: '30px' }}>Выберите сервер для подключения</h2>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px' }}>
                       {config.favorites.map((fav, i) => (
                         <div
@@ -243,7 +243,7 @@ function App() {
                           <div style={{ width: '60px', height: '60px', borderRadius: '12px', background: '#c81e51', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                             <Server size={32} />
                           </div>
-                          <div style={{ fontWeight: '500' }}>{fav.name}</div>
+                          <div style={{ fontWeight: 'bold' }}>{fav.name}</div>
                         </div>
                       ))}
                     </div>
