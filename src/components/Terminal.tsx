@@ -44,7 +44,7 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
   const termRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [, setStatus] = useState<string>('Connecting...');
+  const [status, setStatus] = useState<string>('Connecting...');
 
   useEffect(() => {
     if (!termRef.current) return;
@@ -69,7 +69,11 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
       console.warn('WebGL addon could not be loaded, falling back to standard renderer', e);
     }
 
-    fitAddon.fit();
+    // Add a small delay to ensure container is properly sized
+    setTimeout(() => {
+      fitAddon.fit();
+      ipcRenderer.send('ssh-resize', { id, cols: term.cols, rows: term.rows });
+    }, 100);
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -131,8 +135,40 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
   }, [theme, terminalFontName, terminalFontSize, visible]);
 
   return (
-    <div className="terminal-container" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="terminal-container" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {status !== 'SSH Connection Established' && !status.includes('Error') && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'var(--bg-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+          gap: '20px'
+        }}>
+          <div className="loading-spinner" style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid var(--border-color)',
+            borderTop: '4px solid #c81e51',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <div style={{ fontWeight: 'bold' }}>{status}</div>
+        </div>
+      )}
       <div ref={termRef} style={{ flex: 1, minHeight: 0 }} />
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
