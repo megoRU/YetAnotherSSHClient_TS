@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { TerminalComponent } from './components/Terminal';
 import { ConnectionForm } from './components/ConnectionForm';
 import { Search, Server, Settings, HelpCircle, X, Plus, Minus, Square } from 'lucide-react';
@@ -99,12 +99,15 @@ function App() {
     ipcRenderer.invoke('get-system-fonts').then(setSystemFonts);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (config) {
       const root = document.documentElement;
-      document.body.className = config.theme.toLowerCase().replace(' ', '-');
+      const themeClass = config.theme.toLowerCase().replace(' ', '-');
+      document.body.className = themeClass;
+      document.documentElement.className = themeClass;
       root.style.setProperty('--ui-font-family', config.uiFontName);
       root.style.setProperty('--ui-font-size', `${config.uiFontSize}px`);
+      localStorage.setItem('last-theme', config.theme);
     }
   }, [config]);
 

@@ -102,10 +102,11 @@ function createWindow() {
     if (mainWindow) mainWindow.show()
   })
 
+  const themeParam = `?theme=${encodeURIComponent(config.theme)}`
   if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL + themeParam)
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), { query: { theme: config.theme } })
   }
 }
 
