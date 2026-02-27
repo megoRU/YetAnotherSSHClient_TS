@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "A modern multi-platform SSH client built with React and Electron",
-  "author": "YetAnotherSSHClient Team",
+  "author": "YetAnotherSSHClient Team <support@yash.client>",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
