@@ -105,6 +105,18 @@ function App() {
   if (!config) return <div>Loading...</div>;
 
   const addTab = (type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
+    if (type === 'ssh' && sshConfig) {
+      const existingTab = tabs.find(t =>
+        t.type === 'ssh' &&
+        t.config?.host === sshConfig.host &&
+        t.config?.user === sshConfig.user &&
+        t.config?.port === sshConfig.port
+      );
+      if (existingTab) {
+        setActiveTabId(existingTab.id);
+        return;
+      }
+    }
     const id = Date.now() + Math.random();
     setTabs(prev => [...prev, { id, type, title, config: sshConfig }]);
     setActiveTabId(id);

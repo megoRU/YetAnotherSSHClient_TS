@@ -99,12 +99,15 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   })
 
   sshClient.on('error', (err: any) => {
+    if (!sshClients.has(id)) return;
+
     console.error(`[SSH] Connection error [ID: ${id}, Host: ${config.host}]:`, err);
-    event.reply(`ssh-error-${id}`, err.message)
-    // Clean up if error is fatal
-    sshClients.get(id)?.end()
-    shellStreams.delete(id)
-    sshClients.delete(id)
+    event.reply(`ssh-error-${id}`, err.message);
+
+    // Clean up
+    sshClients.get(id)?.end();
+    shellStreams.delete(id);
+    sshClients.delete(id);
   })
 
   const password = Buffer.from(config.password || '', 'base64').toString('utf8');
@@ -117,6 +120,11 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
     username: config.user,
     password: password,
     readyTimeout: 20000,
+    debug: (msg: string) => {
+      if (msg.includes('DEBUG: ')) {
+         console.log(`[SSH-DEBUG ID: ${id}] ${msg}`);
+      }
+    }
   })
 })
 

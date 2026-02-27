@@ -65,6 +65,7 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
 
     const term = new Terminal({
       cursorBlink: true,
+      cursorStyle: 'block',
       theme: getXtermTheme(theme),
       fontFamily: terminalFontName,
       fontSize: terminalFontSize,
