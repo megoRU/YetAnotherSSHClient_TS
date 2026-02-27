@@ -101,7 +101,10 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   })
 
   sshClient.on('error', (err: any) => {
-    if (!sshClients.has(id)) return;
+    if (!sshClients.has(id)) {
+      console.warn(`[SSH] Ignoring error for already cleaned ID: ${id}`);
+      return;
+    }
 
     console.error(`[SSH] Connection error [ID: ${id}, Host: ${config.host}]:`, err);
     event.reply(`ssh-error-${id}`, err.message);

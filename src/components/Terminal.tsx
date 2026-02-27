@@ -60,20 +60,21 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
     }
   };
 
-  const connect = () => {
+  const connect = (connId: string) => {
     if (!xtermRef.current || connectionInitiatedRef.current) return;
     connectionInitiatedRef.current = true;
     setStatus('Connecting...');
-    console.log(`[SSH] Renderer requesting connection [ID: ${id}]`, {
+    console.log(`[SSH] Renderer requesting connection [ConnID: ${connId}]`, {
       user: config.user,
       host: config.host,
       port: config.port
     });
-    ipcRenderer.send('ssh-connect', { id, config, cols: xtermRef.current.cols, rows: xtermRef.current.rows });
+    ipcRenderer.send('ssh-connect', { id: connId, config, cols: xtermRef.current.cols, rows: xtermRef.current.rows });
   };
 
   useEffect(() => {
     if (!termRef.current) return;
+    const connId = Math.random().toString(36).substring(2, 15);
     isMountedRef.current = true;
     let fitTimeout: any = null;
 
@@ -110,12 +111,15 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
 
     const handleResize = () => {
       safeFit();
+      if (xtermRef.current) {
+        ipcRenderer.send('ssh-resize', { id: connId, cols: xtermRef.current.cols, rows: xtermRef.current.rows });
+      }
     };
 
     window.addEventListener('resize', handleResize);
 
     term.onData(data => {
-      ipcRenderer.send('ssh-input', { id, data });
+      ipcRenderer.send('ssh-input', { id: connId, data });
     });
 
     term.onKey(e => {
@@ -156,17 +160,18 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
       }
     };
 
-    const unsubOutput = ipcRenderer.on(`ssh-output-${id}`, onOutput);
-    const unsubStatus = ipcRenderer.on(`ssh-status-${id}`, onStatus);
-    const unsubError = ipcRenderer.on(`ssh-error-${id}`, onError);
+    const unsubOutput = ipcRenderer.on(`ssh-output-${connId}`, onOutput);
+    const unsubStatus = ipcRenderer.on(`ssh-status-${connId}`, onStatus);
+    const unsubError = ipcRenderer.on(`ssh-error-${connId}`, onError);
 
-    connect();
+    connect(connId);
 
     return () => {
+      console.log(`[SSH] Cleaning up Terminal for ConnID: ${connId}`);
       isMountedRef.current = false;
       if (fitTimeout) clearTimeout(fitTimeout);
       window.removeEventListener('resize', handleResize);
-      ipcRenderer.send('ssh-close', id);
+      ipcRenderer.send('ssh-close', connId);
       unsubOutput();
       unsubStatus();
       unsubError();
@@ -229,7 +234,6 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
               onClick={() => {
                 connectionInitiatedRef.current = false;
                 setKey(prev => prev + 1);
-                connect();
               }}
               style={{
                 padding: '10px 20px',
