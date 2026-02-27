@@ -102,8 +102,6 @@ function App() {
     }
   }, [config]);
 
-  if (!config) return <div>Loading...</div>;
-
   const addTab = useCallback((type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
     const newId = Date.now() + Math.random();
     setTabs(prev => {
@@ -139,6 +137,8 @@ function App() {
     });
     setActiveTabId(newTabId);
   }, [activeTabId]);
+
+  if (!config) return <div>Loading...</div>;
 
   const handleFormSave = (sshConfig: SSHConfig) => {
     if (!config) return;

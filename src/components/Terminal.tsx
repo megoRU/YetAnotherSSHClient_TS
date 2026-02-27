@@ -149,11 +149,14 @@ export const TerminalComponent: React.FC<Props> = ({ id, theme, config, terminal
       xtermRef.current.options.theme = getXtermTheme(theme);
       xtermRef.current.options.fontFamily = terminalFontName;
       xtermRef.current.options.fontSize = terminalFontSize;
-      if (visible) {
-        fitAddonRef.current?.fit();
-      }
     }
-  }, [theme, terminalFontName, terminalFontSize, visible]);
+  }, [theme, terminalFontName, terminalFontSize]);
+
+  useEffect(() => {
+    if (visible && fitAddonRef.current) {
+      fitAddonRef.current.fit();
+    }
+  }, [visible]);
 
   return (
     <div className="terminal-container" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
