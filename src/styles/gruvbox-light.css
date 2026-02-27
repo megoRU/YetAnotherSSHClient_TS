@@ -1,0 +1,32 @@
+:root {
+  --bg-color: #fbf1c7;
+  --text-color: #3c3836;
+  --border-color: rgba(60, 56, 54, 0.1);
+  --sidebar-bg: rgba(60, 56, 54, 0.05);
+}
+
+body.gruvbox-light {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.sidebar {
+  background-color: var(--sidebar-bg);
+}
+
+.fav-item:hover {
+  background-color: rgba(60, 56, 54, 0.1);
+}
+
+.tab.active {
+  background-color: var(--bg-color) !important;
+}
+
+.fav-card:hover {
+  background-color: rgba(60, 56, 54, 0.1) !important;
+}
+
+.terminal-container {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
