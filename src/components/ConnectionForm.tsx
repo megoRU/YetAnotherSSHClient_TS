@@ -8,12 +8,26 @@ interface ConnectionFormProps {
 }
 
 export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onSave, initialConfig }) => {
-  const [config, setConfig] = useState(initialConfig || {
-    name: '',
-    host: '',
-    port: '22',
-    user: 'root',
-    password: ''
+  const [config, setConfig] = useState(() => {
+    if (initialConfig) {
+      // Decode password if it looks like base64
+      let password = initialConfig.password || '';
+      try {
+        if (password && !password.includes(' ') && password.length % 4 === 0) {
+          password = decodeURIComponent(escape(atob(password)));
+        }
+      } catch (e) {
+        // ignore, keep as is
+      }
+      return { ...initialConfig, password };
+    }
+    return {
+      name: '',
+      host: '',
+      port: '22',
+      user: 'root',
+      password: ''
+    };
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -141,7 +155,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onSav
               gap: '8px'
             }}
           >
-            <Save size={18} /> Сохранить
+            <Save size={18} /> {initialConfig ? 'Обновить' : 'Сохранить'}
           </button>
         </div>
       </form>
