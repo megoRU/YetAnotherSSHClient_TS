@@ -26,9 +26,9 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     console.log('[App] Quitting... cleaning up all SSH connections.');
-    shellStreams.forEach(s => s.end());
-    sshClients.forEach(c => c.end());
-    sshSockets.forEach(s => s.destroy());
+    shellStreams.forEach(s => { try { s.destroy(); } catch(e) {} });
+    sshClients.forEach(c => { try { c.destroy(); } catch(e) {} });
+    sshSockets.forEach(s => { try { s.destroy(); } catch(e) {} });
     shellStreams.clear();
     sshClients.clear();
     sshSockets.clear();
@@ -299,9 +299,9 @@ ipcMain.on('ssh-get-os-info', (event, id) => {
 
 ipcMain.on('ssh-close', (_, id: string) => {
   console.log(`[SSH] Closing connection [ID: ${id}]`);
-  shellStreams.get(id)?.end()
-  sshClients.get(id)?.end()
-  sshSockets.get(id)?.destroy()
+  try { shellStreams.get(id)?.destroy(); } catch(e) {}
+  try { sshClients.get(id)?.destroy(); } catch(e) {}
+  try { sshSockets.get(id)?.destroy(); } catch(e) {}
   shellStreams.delete(id)
   sshClients.delete(id)
   sshSockets.delete(id)
