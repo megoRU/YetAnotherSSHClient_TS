@@ -11,6 +11,7 @@ import './App.css';
 const { ipcRenderer } = window as any;
 
 interface SSHConfig {
+  id?: string;
   name: string;
   user: string;
   host: string;
@@ -37,7 +38,12 @@ interface Tab {
 }
 
 // Robust ID generator
-const generateId = () => Math.random().toString(36).substring(2, 11);
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 11);
+};
 
 // Helper to encode string to base64 supporting UTF-8 using TextEncoder/TextDecoder
 const toBase64 = (str: string) => {
@@ -129,7 +135,25 @@ function App() {
   }, []);
 
   useEffect(() => {
-    ipcRenderer.invoke('get-config').then(setConfig);
+    ipcRenderer.invoke('get-config').then((loadedConfig: AppConfig) => {
+      // Migration: ensure all favorites have an ID
+      let changed = false;
+      const migratedFavorites = loadedConfig.favorites.map(fav => {
+        if (!fav.id) {
+          changed = true;
+          return { ...fav, id: generateId() };
+        }
+        return fav;
+      });
+
+      if (changed) {
+        const updatedConfig = { ...loadedConfig, favorites: migratedFavorites };
+        setConfig(updatedConfig);
+        ipcRenderer.invoke('save-config', updatedConfig);
+      } else {
+        setConfig(loadedConfig);
+      }
+    });
     ipcRenderer.invoke('get-system-fonts').then(setSystemFonts);
   }, []);
 
@@ -150,6 +174,7 @@ function App() {
     if (type === 'ssh' && sshConfig) {
       const existingTab = tabs.find(t =>
         t.type === 'ssh' &&
+        t.config?.id === sshConfig.id &&
         t.config?.host === sshConfig.host &&
         t.config?.user === sshConfig.user &&
         t.config?.port === sshConfig.port
@@ -200,7 +225,7 @@ function App() {
       console.log(`[App] Updating OS info for ${sshConfig.host}: ${osPrettyName}`);
 
       const newFavorites = config.favorites.map(fav => {
-        if (fav.host === sshConfig.host && fav.user === sshConfig.user && fav.port === sshConfig.port) {
+        if (fav.id === sshConfig.id) {
           return { ...fav, osPrettyName };
         }
         return fav;
@@ -213,9 +238,10 @@ function App() {
       // Update the active tab's config if it matches
       setTabs(prev => prev.map(tab => {
         if (tab.type === 'ssh' && tab.config &&
-            tab.config.host === sshConfig.host &&
-            tab.config.user === sshConfig.user &&
-            tab.config.port === sshConfig.port) {
+            (tab.config.id === sshConfig.id ||
+             (tab.config.host === sshConfig.host &&
+              tab.config.user === sshConfig.user &&
+              tab.config.port === sshConfig.port))) {
           return { ...tab, config: { ...tab.config, osPrettyName } };
         }
         return tab;
@@ -242,14 +268,13 @@ function App() {
     const name = sshConfig.name || `${sshConfig.user}@${sshConfig.host}`;
     const newFavorite = {
       ...sshConfig,
+      id: sshConfig.id || generateId(),
       name,
       password: toBase64(sshConfig.password || '')
     };
 
     // Check if we are updating an existing favorite
-    const existingIndex = config.favorites.findIndex(f =>
-      f.host === sshConfig.host && f.user === sshConfig.user && f.port === sshConfig.port
-    );
+    const existingIndex = config.favorites.findIndex(f => f.id === newFavorite.id);
 
     let newFavorites;
     if (existingIndex > -1) {
@@ -278,9 +303,7 @@ function App() {
     if (!config) return;
     if (!confirm(`Вы уверены, что хотите удалить ${sshConfig.name}?`)) return;
 
-    const newFavorites = config.favorites.filter(f =>
-      !(f.host === sshConfig.host && f.user === sshConfig.user && f.port === sshConfig.port)
-    );
+    const newFavorites = config.favorites.filter(f => f.id !== sshConfig.id);
 
     const newConfig = { ...config, favorites: newFavorites };
     setConfig(newConfig);
@@ -298,10 +321,13 @@ function App() {
 
   const closeTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (tabs.length === 1) return;
     setTabs(prev => {
-      const newTabs = prev.filter(t => t.id !== id);
-      if (activeTabId === id) {
+      let newTabs = prev.filter(t => t.id !== id);
+      if (newTabs.length === 0) {
+        const homeId = generateId();
+        newTabs = [{ id: homeId, type: 'home', title: 'Главная' }];
+        setActiveTabId(homeId);
+      } else if (activeTabId === id) {
         setActiveTabId(newTabs[newTabs.length - 1].id);
       }
       return newTabs;
@@ -436,11 +462,9 @@ function App() {
                 }}
               >
                 {tab.title}
-                {tabs.length > 1 && (
-                  <div className="tab-close-btn" onClick={(e) => closeTab(e, tab.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', transition: 'background-color 0.2s' }}>
-                    <X size={12} />
-                  </div>
-                )}
+                <div className="tab-close-btn" onClick={(e) => closeTab(e, tab.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', transition: 'background-color 0.2s' }}>
+                  <X size={12} />
+                </div>
               </div>
             ))}
             <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => addTab('home', 'Главная')}>

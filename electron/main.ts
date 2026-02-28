@@ -9,6 +9,22 @@ import net from 'node:net'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const configPath = path.join(os.homedir(), '.minissh_config.json')
 
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+
+  app.whenReady().then(createWindow)
+}
+
 const DEFAULT_CONFIG = {
   "terminalFontName": "JetBrains Mono",
   "terminalFontSize": 17,
@@ -110,8 +126,6 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), { query: { theme: config.theme } })
   }
 }
-
-app.whenReady().then(createWindow)
 
 const sshClients = new Map<string, Client>()
 const shellStreams = new Map<string, any>()
