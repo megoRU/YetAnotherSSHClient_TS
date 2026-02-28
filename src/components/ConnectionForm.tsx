@@ -8,7 +8,7 @@ interface ConnectionFormProps {
 }
 
 export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onSave, initialConfig }) => {
-  const [config, setConfig] = useState(initialConfig || {
+  const [config, setConfig] = useState(() => initialConfig || {
     name: '',
     host: '',
     port: '22',

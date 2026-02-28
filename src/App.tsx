@@ -39,10 +39,15 @@ interface Tab {
 // Robust ID generator
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// Helper to encode string to base64 supporting UTF-8
+// Helper to encode string to base64 supporting UTF-8 using TextEncoder/TextDecoder
 const toBase64 = (str: string) => {
   try {
-    return btoa(unescape(encodeURIComponent(str)));
+    const uint8Array = new TextEncoder().encode(str);
+    let binString = "";
+    uint8Array.forEach((byte) => {
+      binString += String.fromCharCode(byte);
+    });
+    return btoa(binString);
   } catch (e) {
     return btoa(str);
   }
@@ -50,7 +55,9 @@ const toBase64 = (str: string) => {
 
 const fromBase64 = (str: string) => {
   try {
-    return decodeURIComponent(escape(atob(str)));
+    const binString = atob(str);
+    const uint8Array = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
+    return new TextDecoder().decode(uint8Array);
   } catch (e) {
     try {
       return atob(str);
@@ -262,9 +269,7 @@ function App() {
     // Close the current tab after saving
     setTabs(prev => {
       const newTabs = prev.filter(t => t.id !== activeTabId);
-      if (activeTabId === activeTabId) {
-        setActiveTabId(newTabs[newTabs.length - 1]?.id || '0');
-      }
+      setActiveTabId(newTabs[newTabs.length - 1]?.id || '0');
       return newTabs;
     });
   };
