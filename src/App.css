@@ -64,6 +64,22 @@
   font-weight: 800;
 }
 
+.tab:not(.active):hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.tab-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+body.dark .tab:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.dark .tab-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .win-btn {
   transition: background-color 0.2s;
 }
