@@ -23,6 +23,22 @@ if (!gotTheLock) {
   })
 
   app.whenReady().then(createWindow)
+
+  app.on('before-quit', () => {
+    console.log('[App] Quitting... cleaning up all SSH connections.');
+    shellStreams.forEach(s => s.end());
+    sshClients.forEach(c => c.end());
+    sshSockets.forEach(s => s.destroy());
+    shellStreams.clear();
+    sshClients.clear();
+    sshSockets.clear();
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
 }
 
 const DEFAULT_CONFIG = {
@@ -305,6 +321,7 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   mainWindow?.close()
+  app.quit()
 })
 
 ipcMain.on('open-external', (_, url: string) => {
