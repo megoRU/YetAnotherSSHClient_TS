@@ -115,6 +115,7 @@ app.whenReady().then(createWindow)
 
 const sshClients = new Map<string, Client>()
 const shellStreams = new Map<string, any>()
+const sshSockets = new Map<string, net.Socket>()
 
 ipcMain.handle('get-system-fonts', async () => {
   const { exec } = await import('node:child_process')
@@ -142,9 +143,11 @@ ipcMain.handle('get-config', () => loadConfig())
 ipcMain.handle('save-config', (_, config) => saveConfig(config))
 
 ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
-  if (sshClients.has(id)) {
-    console.log(`[SSH] Cleaning up existing connection for ID ${id}`);
+  if (sshClients.has(id) || sshSockets.has(id)) {
+    console.log(`[SSH] Cleaning up existing connection/socket for ID ${id}`);
+    sshSockets.get(id)?.destroy();
     sshClients.get(id)?.end();
+    sshSockets.delete(id);
     shellStreams.delete(id);
     sshClients.delete(id);
   }
@@ -202,6 +205,7 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
   const host = config.host;
 
   const sock = net.connect(port, host);
+  sshSockets.set(id, sock);
 
   sock.on('connect', () => {
     console.log(`[SSH] TCP Socket connected for ID ${id}, setting noDelay: true`);
@@ -222,9 +226,11 @@ ipcMain.on('ssh-connect', (event, { id, config, cols, rows }) => {
 
   sock.on('error', (err) => {
     console.error(`[SSH] TCP Socket error [ID: ${id}]:`, err);
-    if (sshClients.has(id)) {
+    if (sshSockets.has(id)) {
       event.reply(`ssh-error-${id}`, `Socket error: ${err.message}`);
-      sshClient.end();
+      sock.destroy();
+      sshClients.get(id)?.end();
+      sshSockets.delete(id);
       shellStreams.delete(id);
       sshClients.delete(id);
     }
@@ -265,8 +271,10 @@ ipcMain.on('ssh-close', (_, id: string) => {
   console.log(`[SSH] Closing connection [ID: ${id}]`);
   shellStreams.get(id)?.end()
   sshClients.get(id)?.end()
+  sshSockets.get(id)?.destroy()
   shellStreams.delete(id)
   sshClients.delete(id)
+  sshSockets.delete(id)
 })
 
 ipcMain.on('window-minimize', () => {
