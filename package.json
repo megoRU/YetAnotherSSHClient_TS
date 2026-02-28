@@ -1,7 +1,7 @@
 {
   "name": "yetanothersshclient-ts",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A modern multi-platform SSH client built with React and Electron",
   "author": "YetAnotherSSHClient Team <support@yash.client>",
   "type": "module",
