@@ -1,15 +1,47 @@
 body.dark {
-  --bg-color: #1e1e1e;
-  --text-color: #cfcfcf;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --sidebar-bg: rgba(255, 255, 255, 0.05);
+  --bg-color: #282828;
+  --text-color: #ebdbb2;
+  --border-color: rgba(168, 153, 132, 0.3);
+  --sidebar-bg: rgba(60, 56, 54, 0.4);
   background-color: var(--bg-color);
   color: var(--text-color);
+}
+
+body.dark input,
+body.dark select {
+  color: #ebdbb2 !important;
+  background-color: #3c3836 !important;
+  border-color: #504945 !important;
+}
+
+body.dark input:focus,
+body.dark select:focus {
+  outline: none;
+  border-color: #fb4934 !important;
+  background-color: #3c3836 !important;
+}
+
+body.dark select option {
+  background-color: #282828;
+  color: #ebdbb2;
 }
 
 body.dark .menu-item:hover,
 body.dark .menu-dropdown-item:hover,
 body.dark .fav-item:hover,
 body.dark .fav-card:hover {
-  background-color: rgba(255, 255, 255, 0.25) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar {
+  background-color: var(--sidebar-bg);
+}
+
+.tab.active {
+  background-color: var(--bg-color) !important;
+}
+
+.terminal-container {
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }

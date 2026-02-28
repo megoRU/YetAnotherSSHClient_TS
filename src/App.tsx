@@ -30,7 +30,7 @@ interface AppConfig {
 
 interface Tab {
   id: string;
-  type: 'home' | 'ssh' | 'settings' | 'connection';
+  type: 'home' | 'ssh' | 'settings' | 'connection' | 'about';
   title: string;
   config?: SSHConfig;
 }
@@ -306,7 +306,7 @@ function App() {
             </div>
             {openMenu === 'help' && (
               <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: '180px', padding: '5px 0', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }} onClick={() => { alert('YetAnotherSSHClient v0.1.0\n\nПростой и удобный SSH клиент на Electron и React.'); setOpenMenu(null); }}>О программе</div>
+                <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer' }} onClick={() => { addTab('about', 'О программе'); setOpenMenu(null); }}>О программе</div>
               </div>
             )}
           </div>
@@ -510,6 +510,20 @@ function App() {
                           style={{ width: '100%', padding: '8px' }}
                         />
                       </div>
+                    </div>
+                  </div>
+                )}
+                {tab.type === 'about' && (
+                  <div style={{ padding: '40px', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontSize: `${config.uiFontSize}px` }}>
+                      <br />
+                      <b style={{ fontSize: '1.5em' }}>YetAnotherSSHClient_TS</b>
+                      <br /><br />
+                      Версия: 1.0.0
+                      <br /><br />
+                      GitHub: <a href="#" onClick={(e) => { e.preventDefault(); ipcRenderer.send('open-external', 'https://github.com/megoRU/YetAnotherSSHClient_TS'); }} style={{ color: '#c81e51', textDecoration: 'none' }}>YetAnotherSSHClient</a>
+                      <br /><br />
+                      Лицензия: <a href="#" onClick={(e) => { e.preventDefault(); ipcRenderer.send('open-external', 'https://github.com/megoRU/YetAnotherSSHClient/blob/main/LICENSE'); }} style={{ color: '#c81e51', textDecoration: 'none' }}>GNU GPL v3</a>
                     </div>
                   </div>
                 )}
