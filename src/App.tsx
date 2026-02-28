@@ -494,7 +494,7 @@ function App() {
                             onContextMenu={(e) => onContextMenu(e, fav)}
                           style={{
                             padding: '30px',
-                            borderRadius: '15px',
+                            borderRadius: '0',
                             background: 'rgba(0,0,0,0.05)',
                             cursor: 'pointer',
                             display: 'flex',
@@ -503,7 +503,7 @@ function App() {
                             gap: '15px'
                           }}
                         >
-                          <div style={{ width: '60px', height: '60px', borderRadius: '12px', background: '#c81e51', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', overflow: 'hidden' }}>
+                          <div style={{ width: '60px', height: '60px', borderRadius: '0', background: '#c81e51', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', overflow: 'hidden' }}>
                             {fav.osPrettyName ? (
                               <img src={getOSIcon(fav.osPrettyName)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="OS Icon" />
                             ) : (
