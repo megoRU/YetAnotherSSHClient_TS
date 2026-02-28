@@ -295,9 +295,16 @@ function App() {
     ipcRenderer.invoke('save-config', newConfig);
 
     // Close the current tab after saving
-    const newTabs = tabs.filter(t => t.id !== activeTabId);
-    setTabs(newTabs);
-    setActiveTabId(newTabs[newTabs.length - 1]?.id || '0');
+    let newTabs = tabs.filter(t => t.id !== activeTabId);
+    if (newTabs.length === 0) {
+      const homeId = generateId();
+      newTabs = [{ id: homeId, type: 'home', title: 'Главная' }];
+      setTabs(newTabs);
+      setActiveTabId(homeId);
+    } else {
+      setTabs(newTabs);
+      setActiveTabId(newTabs[newTabs.length - 1].id);
+    }
   };
 
   const deleteFavorite = (sshConfig: SSHConfig) => {
@@ -372,9 +379,8 @@ function App() {
               Подключение
             </div>
             {openMenu === 'connect' && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 5px)', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '4px 8px', margin: '1px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { addTab('connection', 'Подключение'); setOpenMenu(null); }}>Новое подключение</div>
-                <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '4px 8px', margin: '1px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { addTab('connection', 'Добавить'); setOpenMenu(null); }}>Добавить в избранное</div>
               </div>
             )}
           </div>
@@ -388,7 +394,7 @@ function App() {
               Настройки
             </div>
             {openMenu === 'settings' && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 5px)', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '4px 8px', margin: '1px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { addTab('settings', 'Параметры'); setOpenMenu(null); }}>Параметры</div>
               </div>
             )}
@@ -403,7 +409,7 @@ function App() {
               Справка
             </div>
             {openMenu === 'help' && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 5px)', left: 0, background: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '4px', zIndex: 100, width: 'max-content', padding: '2px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
                 <div className="menu-dropdown-item" style={{ fontWeight: 'bold', padding: '4px 8px', margin: '1px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { addTab('about', 'О программе'); setOpenMenu(null); }}>О программе</div>
               </div>
             )}
@@ -622,12 +628,13 @@ function App() {
                 {tab.type === 'about' && (
                   <div style={{ padding: '40px', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ fontSize: `${config.uiFontSize}px` }}>
+                      <img src="./icons/icon256.png" style={{ width: '128px', height: '128px', marginBottom: '20px' }} alt="Logo" />
                       <br />
-                      <b style={{ fontSize: '1.5em' }}>YetAnotherSSHClient_TS</b>
+                      <b style={{ fontSize: '1.5em' }}>YetAnotherSSHClient</b>
                       <br /><br />
                       Версия: 1.0.0
                       <br /><br />
-                      GitHub: <a href="#" onClick={(e) => { e.preventDefault(); ipcRenderer.send('open-external', 'https://github.com/megoRU/YetAnotherSSHClient_TS'); }} style={{ color: '#c81e51', textDecoration: 'none' }}>YetAnotherSSHClient</a>
+                      GitHub: <a href="#" onClick={(e) => { e.preventDefault(); ipcRenderer.send('open-external', 'https://github.com/megoRU/YetAnotherSSHClient'); }} style={{ color: '#c81e51', textDecoration: 'none' }}>YetAnotherSSHClient</a>
                       <br /><br />
                       Лицензия: <a href="#" onClick={(e) => { e.preventDefault(); ipcRenderer.send('open-external', 'https://github.com/megoRU/YetAnotherSSHClient/blob/main/LICENSE'); }} style={{ color: '#c81e51', textDecoration: 'none' }}>GNU GPL v3</a>
                     </div>
