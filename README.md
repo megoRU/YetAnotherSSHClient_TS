@@ -15,11 +15,11 @@ YetAnotherSSHClient — лёгкий SSH-клиент на ReactJS для быс
 
 ### 🌙 Тёмная тема
 
-[//]: # (![Main view]&#40;https://github.com/megoRU/YetAnotherSSHClient/blob/main/images/YASSHClient_Dark.png?raw=true&#41;)
+![Main view](https://github.com/megoRU/YetAnotherSSHClient/blob/main/images/GruvboxDark.png?raw=true)
 
 ### 🌾 Gruvbox Light
 
-[//]: # (![Main view]&#40;https://github.com/megoRU/YetAnotherSSHClient/blob/main/images/YASSHClient_Gruvbox_Light.png?raw=true&#41;)
+![Main view](https://github.com/megoRU/YetAnotherSSHClient/blob/main/images/GruvboxLight.png?raw=true)
 
 🧩 Используемые технологии
 - React
