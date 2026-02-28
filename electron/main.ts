@@ -320,8 +320,18 @@ ipcMain.on('window-maximize', () => {
 })
 
 ipcMain.on('window-close', () => {
-  mainWindow?.close()
-  app.quit()
+  console.log('[App] Closing window, cleaning SSH...');
+
+  shellStreams.forEach(s => { try { s.destroy(); } catch(e) {} });
+  sshClients.forEach(c => { try { c.destroy(); } catch(e) {} });
+  sshSockets.forEach(s => { try { s.destroy(); } catch(e) {} });
+
+  shellStreams.clear();
+  sshClients.clear();
+  sshSockets.clear();
+
+  mainWindow?.destroy();
+  app.exit(0);
 })
 
 ipcMain.on('open-external', (_, url: string) => {
