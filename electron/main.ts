@@ -8,7 +8,7 @@ import * as net from 'node:net'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 
-const execAsync = promisify(exec)
+const execAsync = (cmd: string) => promisify(exec)(cmd, { maxBuffer: 1024 * 1024 * 10 })
 
 /* ================= TYPES ================= */
 
@@ -92,16 +92,25 @@ async function getSystemFonts(): Promise<string[]> {
     try {
         let fonts: string[] = []
         if (process.platform === 'win32') {
-            const { stdout } = await execAsync('powershell -command "Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts\' | Get-Member -MemberType Property | Select-Object -ExpandProperty Name"')
+            const cmd = `powershell -NoProfile -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name"`
+            const { stdout } = await execAsync(cmd)
             fonts = stdout.split(/\r?\n/)
-                .map(s => s.trim().replace(/ \(TrueType\)$/i, ''))
-                .filter(s => s && !['PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider'].includes(s))
+                .map(s => s.trim())
+                .filter(Boolean)
         } else if (process.platform === 'darwin') {
-            const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
-            fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            try {
+                const { stdout } = await execAsync('atsutil font -list | grep "^\\s*Family:" | awk -F ": " \'{print $2}\'')
+                fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            } catch {
+                const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
+                fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            }
         } else {
             const { stdout } = await execAsync('fc-list : family')
-            fonts = stdout.split(/\r?\n/).map(s => s.split(',')[0].trim()).filter(Boolean)
+            fonts = stdout.split(/\r?\n/)
+                .flatMap(s => s.split(','))
+                .map(s => s.trim())
+                .filter(Boolean)
         }
         return Array.from(new Set([...fallbacks, ...fonts])).sort()
     } catch (e) {
