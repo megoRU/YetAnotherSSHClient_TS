@@ -85,23 +85,28 @@ function saveConfig(config: AppConfig): void {
 }
 
 async function getSystemFonts(): Promise<string[]> {
+    const fallbacks = [
+        'JetBrains Mono', 'Consolas', 'Courier New', 'Segoe UI',
+        'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
+    ]
     try {
+        let fonts: string[] = []
         if (process.platform === 'win32') {
             const { stdout } = await execAsync('powershell -command "Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts\' | Get-Member -MemberType Property | Select-Object -ExpandProperty Name"')
-            return stdout.split('\r\n')
+            fonts = stdout.split(/\r?\n/)
                 .map(s => s.trim().replace(/ \(TrueType\)$/i, ''))
                 .filter(s => s && !['PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider'].includes(s))
-                .sort()
         } else if (process.platform === 'darwin') {
             const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
-            return Array.from(new Set(stdout.split('\n').map(s => s.trim()).filter(Boolean))).sort()
+            fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
         } else {
             const { stdout } = await execAsync('fc-list : family')
-            return Array.from(new Set(stdout.split('\n').map(s => s.split(',')[0].trim()).filter(Boolean))).sort()
+            fonts = stdout.split(/\r?\n/).map(s => s.split(',')[0].trim()).filter(Boolean)
         }
+        return Array.from(new Set([...fallbacks, ...fonts])).sort()
     } catch (e) {
         console.error('Failed to get system fonts:', e)
-        return ['JetBrains Mono', 'Courier New', 'monospace']
+        return fallbacks.sort()
     }
 }
 
