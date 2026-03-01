@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, IpcMainEvent } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, IpcMainEvent, dialog } from 'electron'
 import * as path from 'node:path'
 import { Client, PseudoTtyOptions, type ClientChannel, type ConnectConfig } from 'ssh2'
 import * as fs from 'node:fs'
@@ -19,7 +19,8 @@ interface SSHConfig {
     host: string
     port: number
     password?: string
-    identityFile?: string
+    authType?: 'password' | 'key'
+    privateKeyPath?: string
     osPrettyName?: string
 }
 
@@ -35,6 +36,7 @@ interface AppConfig {
     width: number
     height: number
     maximized: boolean
+    lastUpdateCheck?: number
 }
 
 interface SshConnectPayload {
@@ -68,7 +70,8 @@ const DEFAULT_CONFIG: AppConfig = {
     y: 141,
     width: 1254,
     height: 909,
-    maximized: false
+    maximized: false,
+    lastUpdateCheck: 0
 }
 
 function loadConfig(): AppConfig {
@@ -198,7 +201,13 @@ if (!app.requestSingleInstanceLock()) {
         }
     })
 
-    app.whenReady().then(createWindow)
+    app.whenReady().then(() => {
+        if (process.platform === 'win32') {
+            app.setAppUserModelId('com.yash.client')
+        }
+        createWindow()
+        setTimeout(checkUpdates, 5000)
+    })
 
     app.on('before-quit', cleanupAll)
 
@@ -222,6 +231,18 @@ ipcMain.handle('get-config', () => loadConfig())
 ipcMain.handle('get-system-fonts', () => getSystemFonts())
 ipcMain.handle('save-config', (_, config: AppConfig) => saveConfig(config))
 
+ipcMain.handle('select-key-file', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: 'Keys', extensions: ['*', 'pem', 'ppk'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    })
+    if (canceled) return null
+    return filePaths[0]
+})
+
 ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
     const { id, config, cols = 80, rows = 24 } = payload
 
@@ -234,8 +255,6 @@ ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
     const sshClient = new Client()
     sshClients.set(id, sshClient)
 
-    const password = Buffer.from(config.password ?? '', 'base64').toString('utf8')
-
     const socket = net.connect(config.port || 22, config.host)
     sshSockets.set(id, socket)
 
@@ -245,8 +264,19 @@ ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
         const connectConfig: ConnectConfig = {
             sock: socket,
             username: config.user,
-            password,
             readyTimeout: 20000
+        }
+
+        if (config.authType === 'key' && config.privateKeyPath) {
+            try {
+                connectConfig.privateKey = fs.readFileSync(config.privateKeyPath)
+            } catch (err: any) {
+                event.reply(`ssh-error-${id}`, `Failed to read private key: ${err.message}`)
+                cleanupConnection(id)
+                return
+            }
+        } else {
+            connectConfig.password = Buffer.from(config.password ?? '', 'base64').toString('utf8')
         }
 
         sshClient.connect(connectConfig)
@@ -330,3 +360,47 @@ ipcMain.on('window-close', () => {
 })
 
 ipcMain.on('open-external', (_, url: string) => shell.openExternal(url))
+
+async function checkUpdates() {
+    const config = loadConfig()
+    const now = Date.now()
+    const ONE_DAY = 24 * 60 * 60 * 1000
+
+    if (config.lastUpdateCheck && (now - config.lastUpdateCheck < ONE_DAY)) {
+        return
+    }
+
+    try {
+        const GITHUB_API_URL = "https://api.github.com/repos/megoRU/YetAnotherSSHClient/releases/latest"
+        const response = await fetch(GITHUB_API_URL, {
+            headers: { 'User-Agent': 'YetAnotherSSHClient' }
+        })
+        if (!response.ok) return
+
+        const data: any = await response.json()
+        const latestVersion = data.tag_name.replace(/^v/, '')
+        const currentVersion = app.getVersion()
+
+        if (isNewerVersion(latestVersion, currentVersion)) {
+            mainWindow?.webContents.send('update-available', {
+                version: latestVersion,
+                url: data.html_url
+            })
+        }
+
+        config.lastUpdateCheck = now
+        saveConfig(config)
+    } catch (err) {
+        console.error('Failed to check for updates:', err)
+    }
+}
+
+function isNewerVersion(latest: string, current: string): boolean {
+    const l = latest.split('.').map(Number)
+    const c = current.split('.').map(Number)
+    for (let i = 0; i < 3; i++) {
+        if (l[i] > (c[i] || 0)) return true
+        if (l[i] < (c[i] || 0)) return false
+    }
+    return false
+}
