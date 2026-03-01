@@ -160,17 +160,16 @@ function createWindow(): void {
         if (saveTimeout) clearTimeout(saveTimeout)
         saveTimeout = setTimeout(() => {
             if (!mainWindow) return
-            const bounds = mainWindow.getBounds()
             const isMaximized = mainWindow.isMaximized()
+            const bounds = isMaximized ? mainWindow.getNormalBounds() : mainWindow.getBounds()
             const current = loadConfig()
 
-            if (!isMaximized) {
-                current.x = bounds.x
-                current.y = bounds.y
-                current.width = bounds.width
-                current.height = bounds.height
-            }
+            current.x = Math.round(bounds.x)
+            current.y = Math.round(bounds.y)
+            current.width = Math.round(bounds.width)
+            current.height = Math.round(bounds.height)
             current.maximized = isMaximized
+
             saveConfig(current)
         }, 500)
     }

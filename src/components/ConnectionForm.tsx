@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {FileKey, Play, Save, Server} from 'lucide-react';
+import {Eye, EyeOff, FileKey, Play, Save, Server} from 'lucide-react';
 
 const {ipcRenderer} = window as any;
 
@@ -20,6 +20,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
         privateKeyPath: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const {name, value} = e.target;
@@ -194,20 +195,38 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                 ) : (
                     <div>
                         <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Пароль</label>
-                        <input
-                            name="password"
-                            type="password"
-                            value={config.password}
-                            onChange={handleChange}
-                            placeholder="••••••••"
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(0,0,0,0.03)'
-                            }}
-                        />
+                        <div style={{position: 'relative'}}>
+                            <input
+                                name="password"
+                                type={showPassword ? 'text' : 'password'}
+                                value={config.password}
+                                onChange={handleChange}
+                                placeholder="••••••••"
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    paddingRight: '40px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'rgba(0,0,0,0.03)'
+                                }}
+                            />
+                            <div
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    opacity: 0.5
+                                }}
+                            >
+                                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                            </div>
+                        </div>
                     </div>
                 )}
 
