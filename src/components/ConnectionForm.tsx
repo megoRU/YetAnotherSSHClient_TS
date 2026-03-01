@@ -144,6 +144,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                         style={{
                             width: '100%',
                             padding: '10px',
+                            paddingRight: '30px',
                             borderRadius: '6px',
                             border: '1px solid var(--border-color)',
                             background: 'rgba(0,0,0,0.03)',

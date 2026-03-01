@@ -543,7 +543,7 @@ function App() {
                     </div>
                 </div>
 
-                <div style={{fontSize: '12px', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <div style={{fontSize: '12px', opacity: 1, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold'}}>
                     YetAnotherSSHClient
                     {updateAvailable && (
                         <div
