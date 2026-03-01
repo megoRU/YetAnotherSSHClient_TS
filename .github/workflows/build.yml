@@ -30,7 +30,7 @@ jobs:
         run: npm install
 
       - name: Build and Release
-        run: npm run package
+        run: npm run package -- --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -38,4 +38,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ matrix.os }}
-          path: release/1.0.0/
+          path: release/**
