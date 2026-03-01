@@ -17,7 +17,8 @@ interface SSHConfig {
     host: string
     port: number
     password?: string
-    identityFile?: string
+    authType?: 'password' | 'key'
+    privateKeyPath?: string
     osPrettyName?: string
 }
 
@@ -33,6 +34,7 @@ interface AppConfig {
     width: number
     height: number
     maximized: boolean
+    lastUpdateCheck?: number
 }
 
 interface Tab {
@@ -131,7 +133,17 @@ function App() {
     const [search, setSearch] = useState('');
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, config: SSHConfig } | null>(null);
+    const [updateAvailable, setUpdateAvailable] = useState<{ version: string, url: string } | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const unlisten = ipcRenderer.on('update-available', (data: any) => {
+            setUpdateAvailable(data);
+        });
+        return () => {
+            if (typeof unlisten === 'function') unlisten();
+        };
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -531,7 +543,26 @@ function App() {
                     </div>
                 </div>
 
-                <div style={{fontSize: '12px', opacity: 0.6}}>YetAnotherSSHClient</div>
+                <div style={{fontSize: '12px', opacity: 1, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold'}}>
+                    YetAnotherSSHClient
+                    {updateAvailable && (
+                        <div
+                            onClick={() => ipcRenderer.send('open-external', updateAvailable.url)}
+                            style={{
+                                background: '#c81e51',
+                                color: 'white',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '10px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                ['WebkitAppRegion' as any]: 'no-drag'
+                            }}
+                        >
+                            Доступно обновление: v{updateAvailable.version}
+                        </div>
+                    )}
+                </div>
 
                 <div style={{display: 'flex', ['WebkitAppRegion' as any]: 'no-drag', height: '100%'}}>
                     <div className="win-btn" onClick={() => ipcRenderer.send('window-minimize')}
@@ -854,7 +885,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.1
+                                            Версия: 1.0.2
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();

@@ -1,5 +1,7 @@
 import React, {useState} from 'react';
-import {Play, Save, Server} from 'lucide-react';
+import {Eye, EyeOff, FileKey, Play, Save, Server} from 'lucide-react';
+
+const {ipcRenderer} = window as any;
 
 interface ConnectionFormProps {
     onConnect: (config: any) => void;
@@ -13,13 +15,23 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
         host: '',
         port: '22',
         user: 'root',
-        password: ''
+        password: '',
+        authType: 'password',
+        privateKeyPath: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const {name, value} = e.target;
         setConfig((prev: any) => ({...prev, [name]: value}));
+    };
+
+    const handleSelectKey = async () => {
+        const path = await ipcRenderer.invoke('select-key-file');
+        if (path) {
+            setConfig((prev: any) => ({...prev, privateKeyPath: path}));
+        }
     };
 
     const handleConnect = (e: React.FormEvent) => {
@@ -125,22 +137,98 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                 </div>
 
                 <div>
-                    <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Пароль</label>
-                    <input
-                        name="password"
-                        type="password"
-                        value={config.password}
+                    <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Способ аутентификации</label>
+                    <select
+                        name="authType"
+                        value={config.authType || 'password'}
                         onChange={handleChange}
-                        placeholder="••••••••"
                         style={{
                             width: '100%',
                             padding: '10px',
+                            paddingRight: '30px',
                             borderRadius: '6px',
                             border: '1px solid var(--border-color)',
-                            background: 'rgba(0,0,0,0.03)'
+                            background: 'rgba(0,0,0,0.03)',
+                            color: 'inherit'
                         }}
-                    />
+                    >
+                        <option value="password">Пароль</option>
+                        <option value="key">SSH Ключ</option>
+                    </select>
                 </div>
+
+                {config.authType === 'key' ? (
+                    <div>
+                        <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Путь к приватному
+                            ключу</label>
+                        <div style={{display: 'flex', gap: '10px'}}>
+                            <input
+                                name="privateKeyPath"
+                                value={config.privateKeyPath}
+                                onChange={handleChange}
+                                placeholder="/path/to/id_rsa"
+                                style={{
+                                    flex: 1,
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'rgba(0,0,0,0.03)'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={handleSelectKey}
+                                className="btn-secondary"
+                                style={{
+                                    padding: '0 15px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                }}
+                            >
+                                <FileKey size={16}/> Обзор
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Пароль</label>
+                        <div style={{position: 'relative'}}>
+                            <input
+                                name="password"
+                                type={showPassword ? 'text' : 'password'}
+                                value={config.password}
+                                onChange={handleChange}
+                                placeholder="••••••••"
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    paddingRight: '40px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'rgba(0,0,0,0.03)'
+                                }}
+                            />
+                            <div
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    opacity: 0.5
+                                }}
+                            >
+                                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div style={{display: 'flex', gap: '15px', marginTop: '10px'}}>
                     <button
