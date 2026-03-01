@@ -5,6 +5,10 @@ import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as os from 'node:os'
 import * as net from 'node:net'
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = promisify(exec)
 
 /* ================= TYPES ================= */
 
@@ -78,6 +82,27 @@ function loadConfig(): AppConfig {
 
 function saveConfig(config: AppConfig): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+}
+
+async function getSystemFonts(): Promise<string[]> {
+    try {
+        if (process.platform === 'win32') {
+            const { stdout } = await execAsync('powershell -command "Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts\' | Get-Member -MemberType Property | Select-Object -ExpandProperty Name"')
+            return stdout.split('\r\n')
+                .map(s => s.trim().replace(/ \(TrueType\)$/i, ''))
+                .filter(s => s && !['PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider'].includes(s))
+                .sort()
+        } else if (process.platform === 'darwin') {
+            const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
+            return Array.from(new Set(stdout.split('\n').map(s => s.trim()).filter(Boolean))).sort()
+        } else {
+            const { stdout } = await execAsync('fc-list : family')
+            return Array.from(new Set(stdout.split('\n').map(s => s.split(',')[0].trim()).filter(Boolean))).sort()
+        }
+    } catch (e) {
+        console.error('Failed to get system fonts:', e)
+        return ['JetBrains Mono', 'Courier New', 'monospace']
+    }
 }
 
 /* ================= WINDOW ================= */
@@ -180,6 +205,7 @@ function cleanupAll(): void {
 /* ================= IPC ================= */
 
 ipcMain.handle('get-config', () => loadConfig())
+ipcMain.handle('get-system-fonts', () => getSystemFonts())
 ipcMain.handle('save-config', (_, config: AppConfig) => saveConfig(config))
 
 ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
@@ -253,6 +279,21 @@ ipcMain.on('ssh-input', (_, payload: { id: string; data: string }) => {
 
 ipcMain.on('ssh-resize', (_, payload: { id: string; cols: number; rows: number }) => {
     shellStreams.get(payload.id)?.setWindow(payload.rows, payload.cols, 0, 0)
+})
+
+ipcMain.on('ssh-get-os-info', (event: IpcMainEvent, id: string) => {
+    const client = sshClients.get(id)
+    if (client) {
+        client.exec('cat /etc/os-release', (err, stream) => {
+            if (err) return
+            let output = ''
+            stream.on('data', (data: Buffer) => {
+                output += data.toString()
+            }).on('close', () => {
+                event.reply(`ssh-os-info-${id}`, output)
+            })
+        })
+    }
 })
 
 ipcMain.on('ssh-close', (_, id: string) => cleanupConnection(id))
