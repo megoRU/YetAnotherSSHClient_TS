@@ -11,23 +11,28 @@ import './App.css';
 const {ipcRenderer} = window as any;
 
 interface SSHConfig {
-    id?: string;
-    name: string;
-    user: string;
-    host: string;
-    port: string;
-    password?: string;
-    identityFile?: string;
-    osPrettyName?: string;
+    id?: string
+    name: string
+    user: string
+    host: string
+    port: number
+    password?: string
+    identityFile?: string
+    osPrettyName?: string
 }
 
 interface AppConfig {
-    terminalFontName: string;
-    terminalFontSize: number;
-    uiFontName: string;
-    uiFontSize: number;
-    theme: string;
-    favorites: SSHConfig[];
+    terminalFontName: string
+    terminalFontSize: number
+    uiFontName: string
+    uiFontSize: number
+    theme: string
+    favorites: SSHConfig[]
+    x: number
+    y: number
+    width: number
+    height: number
+    maximized: boolean
 }
 
 interface Tab {
@@ -65,9 +70,11 @@ const fromBase64 = (str: string) => {
         const uint8Array = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
         return new TextDecoder().decode(uint8Array);
     } catch (e) {
+        console.error(e);
         try {
             return atob(str);
         } catch (e2) {
+            console.error(e2);
             return str;
         }
     }
