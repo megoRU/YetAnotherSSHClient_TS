@@ -1,7 +1,7 @@
 {
   "name": "yetanothersshclient-ts",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modern multi-platform SSH client built with React and Electron",
   "author": "YetAnotherSSHClient Team <support@yash.client>",
   "type": "module",
@@ -45,9 +45,6 @@
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "build": {
-    "publish": [
-      "github"
-    ],
     "appId": "com.yash.client",
     "productName": "YetAnotherSSHClient",
     "directories": {
@@ -80,7 +77,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "YetAnotherSSHClient"
+      "shortcutName": "YetAnotherSSHClient",
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
     },
     "linux": {
       "target": [
