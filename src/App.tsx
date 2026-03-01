@@ -121,7 +121,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 function App() {
     const [config, setConfig] = useState<AppConfig | null>(null);
-    const [systemFonts, setSystemFonts] = useState<string[]>([]);
+    const [systemFonts, setSystemFonts] = useState<string[]>([
+        'JetBrains Mono', 'Consolas', 'Courier New', 'Segoe UI',
+        'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
+    ]);
     const [activeTabId, setActiveTabId] = useState<string>('0');
     const isConnectingRef = useRef(false);
     const [tabs, setTabs] = useState<Tab[]>([{id: '0', type: 'home', title: 'Главная'}]);
@@ -160,7 +163,11 @@ function App() {
                 setConfig(loadedConfig);
             }
         });
-        ipcRenderer.invoke('get-system-fonts').then(setSystemFonts);
+        ipcRenderer.invoke('get-system-fonts').then((fonts: string[]) => {
+            if (fonts && fonts.length > 0) {
+                setSystemFonts(fonts);
+            }
+        });
     }, []);
 
     useLayoutEffect(() => {

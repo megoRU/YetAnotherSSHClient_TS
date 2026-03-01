@@ -5,6 +5,10 @@ import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as os from 'node:os'
 import * as net from 'node:net'
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = (cmd: string) => promisify(exec)(cmd, { maxBuffer: 1024 * 1024 * 10 })
 
 /* ================= TYPES ================= */
 
@@ -78,6 +82,41 @@ function loadConfig(): AppConfig {
 
 function saveConfig(config: AppConfig): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+}
+
+async function getSystemFonts(): Promise<string[]> {
+    const fallbacks = [
+        'JetBrains Mono', 'Consolas', 'Courier New', 'Segoe UI',
+        'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
+    ]
+    try {
+        let fonts: string[] = []
+        if (process.platform === 'win32') {
+            const cmd = `powershell -NoProfile -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name"`
+            const { stdout } = await execAsync(cmd)
+            fonts = stdout.split(/\r?\n/)
+                .map(s => s.trim())
+                .filter(Boolean)
+        } else if (process.platform === 'darwin') {
+            try {
+                const { stdout } = await execAsync('atsutil font -list | grep "^\\s*Family:" | awk -F ": " \'{print $2}\'')
+                fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            } catch {
+                const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
+                fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+            }
+        } else {
+            const { stdout } = await execAsync('fc-list : family')
+            fonts = stdout.split(/\r?\n/)
+                .flatMap(s => s.split(','))
+                .map(s => s.trim())
+                .filter(Boolean)
+        }
+        return Array.from(new Set([...fallbacks, ...fonts])).sort()
+    } catch (e) {
+        console.error('Failed to get system fonts:', e)
+        return fallbacks.sort()
+    }
 }
 
 /* ================= WINDOW ================= */
@@ -180,6 +219,7 @@ function cleanupAll(): void {
 /* ================= IPC ================= */
 
 ipcMain.handle('get-config', () => loadConfig())
+ipcMain.handle('get-system-fonts', () => getSystemFonts())
 ipcMain.handle('save-config', (_, config: AppConfig) => saveConfig(config))
 
 ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
@@ -253,6 +293,21 @@ ipcMain.on('ssh-input', (_, payload: { id: string; data: string }) => {
 
 ipcMain.on('ssh-resize', (_, payload: { id: string; cols: number; rows: number }) => {
     shellStreams.get(payload.id)?.setWindow(payload.rows, payload.cols, 0, 0)
+})
+
+ipcMain.on('ssh-get-os-info', (event: IpcMainEvent, id: string) => {
+    const client = sshClients.get(id)
+    if (client) {
+        client.exec('cat /etc/os-release', (err, stream) => {
+            if (err) return
+            let output = ''
+            stream.on('data', (data: Buffer) => {
+                output += data.toString()
+            }).on('close', () => {
+                event.reply(`ssh-os-info-${id}`, output)
+            })
+        })
+    }
 })
 
 ipcMain.on('ssh-close', (_, id: string) => cleanupConnection(id))

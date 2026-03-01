@@ -65,7 +65,30 @@ const getXtermTheme = (theme: string) => {
                 brightCyan: '#427b58',
                 brightWhite: '#3c3836',
             };
-        case 'Light':
+        case 'Light': {
+            return {
+                background: '#ffffff',
+                foreground: '#000000',
+                cursor: '#000000',
+                selectionBackground: '#add6ff',
+                black: '#000000',
+                red: '#cd3131',
+                green: '#00bc00',
+                yellow: '#949800',
+                blue: '#0451a5',
+                magenta: '#bc05bc',
+                cyan: '#0598bc',
+                white: '#555555',
+                brightBlack: '#666666',
+                brightRed: '#cd3131',
+                brightGreen: '#14e314',
+                brightYellow: '#b5ba00',
+                brightBlue: '#0451a5',
+                brightMagenta: '#bc05bc',
+                brightCyan: '#0598bc',
+                brightWhite: '#a5a5a5',
+            };
+        }
         default:
             return {
                 background: '#ffffff',
