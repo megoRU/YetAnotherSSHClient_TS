@@ -1,7 +1,7 @@
 {
   "name": "yetanothersshclient",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A modern multi-platform SSH client built with React and Electron",
   "author": "YetAnotherSSHClient Team <support@yash.client>",
   "engines": {
@@ -95,7 +95,7 @@
         }
       ],
       "artifactName": "YASSHClient-${version}-windows64.${ext}",
-      "icon": "public/icons/icon1024.png",
+      "icon": "public/icons/icon256.png",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
