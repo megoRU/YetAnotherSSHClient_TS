@@ -124,8 +124,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 function App() {
     const [config, setConfig] = useState<AppConfig | null>(null);
     const [systemFonts, setSystemFonts] = useState<string[]>([
-        'JetBrains Mono', 'Consolas', 'Courier New', 'Segoe UI',
-        'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
+        'JetBrains Mono', 'Menlo', 'Monaco', 'SF Pro Display', 'Helvetica Neue',
+        'Consolas', 'Courier New', 'Segoe UI', 'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
     ]);
     const [activeTabId, setActiveTabId] = useState<string>('0');
     const isConnectingRef = useRef(false);
@@ -382,7 +382,7 @@ function App() {
                     ['WebkitAppRegion' as any]: 'no-drag',
                     alignItems: 'center',
                     height: '100%',
-                    paddingLeft: '10px'
+                    paddingLeft: ipcRenderer.platform === 'darwin' ? '80px' : '10px'
                 }}>
                     <img src="./icons/icon32.png" style={{width: '20px', height: '20px', marginRight: '15px'}}
                          alt="Logo"/>
@@ -547,35 +547,37 @@ function App() {
                     )}
                 </div>
 
-                <div style={{display: 'flex', ['WebkitAppRegion' as any]: 'no-drag', height: '100%'}}>
-                    <div className="win-btn" onClick={() => ipcRenderer.send('window-minimize')}
-                         style={{
-                             padding: '0 15px',
-                             cursor: 'pointer',
-                             height: '100%',
-                             display: 'flex',
-                             alignItems: 'center'
-                         }}>
-                        <Minus size={14}/></div>
-                    <div className="win-btn" onClick={() => ipcRenderer.send('window-maximize')}
-                         style={{
-                             padding: '0 15px',
-                             cursor: 'pointer',
-                             height: '100%',
-                             display: 'flex',
-                             alignItems: 'center'
-                         }}>
-                        <Square size={12}/></div>
-                    <div className="win-btn close" onClick={() => ipcRenderer.send('window-close')}
-                         style={{
-                             padding: '0 15px',
-                             cursor: 'pointer',
-                             height: '100%',
-                             display: 'flex',
-                             alignItems: 'center'
-                         }}>
-                        <X size={14}/></div>
-                </div>
+                {ipcRenderer.platform !== 'darwin' && (
+                    <div style={{display: 'flex', ['WebkitAppRegion' as any]: 'no-drag', height: '100%'}}>
+                        <div className="win-btn" onClick={() => ipcRenderer.send('window-minimize')}
+                             style={{
+                                 padding: '0 15px',
+                                 cursor: 'pointer',
+                                 height: '100%',
+                                 display: 'flex',
+                                 alignItems: 'center'
+                             }}>
+                            <Minus size={14}/></div>
+                        <div className="win-btn" onClick={() => ipcRenderer.send('window-maximize')}
+                             style={{
+                                 padding: '0 15px',
+                                 cursor: 'pointer',
+                                 height: '100%',
+                                 display: 'flex',
+                                 alignItems: 'center'
+                             }}>
+                            <Square size={12}/></div>
+                        <div className="win-btn close" onClick={() => ipcRenderer.send('window-close')}
+                             style={{
+                                 padding: '0 15px',
+                                 cursor: 'pointer',
+                                 height: '100%',
+                                 display: 'flex',
+                                 alignItems: 'center'
+                             }}>
+                            <X size={14}/></div>
+                    </div>
+                )}
             </div>
 
             <div style={{display: 'flex', flex: 1, minHeight: 0}}>
