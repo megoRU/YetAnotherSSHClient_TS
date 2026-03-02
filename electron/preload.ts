@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   },
   invoke: (channel: string, data: unknown) => ipcRenderer.invoke(channel, data),
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
+  platform: process.platform,
 })

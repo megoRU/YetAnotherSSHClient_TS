@@ -1,10 +1,23 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import * as path from 'node:path'
+import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { loadConfig, saveConfig } from './src/config.js'
 import { cleanupAll } from './src/ssh-manager.js'
 import { checkUpdates } from './src/update-service.js'
 import { registerIpcHandlers } from './src/ipc-handlers.js'
+
+/* ================= ERRORS ================= */
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error)
+    dialog.showErrorBox('Critical Error', error.message || String(error))
+})
+
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled Rejection:', reason)
+    dialog.showErrorBox('Unhandled Promise Rejection', String(reason))
+})
 
 /* ================= INIT ================= */
 
@@ -32,6 +45,11 @@ function getThemeColor(theme: string): string {
 function createWindow(): void {
     const config = loadConfig()
 
+    // Используем app.getAppPath() для надежного определения путей в упакованном виде
+    const preloadPath = app.isPackaged
+        ? path.join(app.getAppPath(), 'dist-electron/preload.mjs')
+        : path.join(__dirname, 'preload.mjs')
+
     mainWindow = new BrowserWindow({
         x: config.x,
         y: config.y,
@@ -42,7 +60,7 @@ function createWindow(): void {
         frame: false,
         titleBarStyle: 'hidden',
         webPreferences: {
-            preload: path.join(__dirname, 'preload.mjs'),
+            preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false
         },
@@ -83,10 +101,17 @@ function createWindow(): void {
     mainWindow.once('ready-to-show', () => mainWindow?.show())
 
     const themeParam = `?theme=${encodeURIComponent(config.theme)}`
-    if (process.env.VITE_DEV_SERVER_URL)
+    if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL + themeParam)
-    else
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), { query: { theme: config.theme } })
+    } else {
+        const indexPath = path.join(app.getAppPath(), 'dist/index.html')
+        if (fs.existsSync(indexPath)) {
+            mainWindow.loadFile(indexPath, { query: { theme: config.theme } })
+        } else {
+            // Фолбек на __dirname если через getAppPath не нашли
+            mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), { query: { theme: config.theme } })
+        }
+    }
 }
 
 /* ================= APP LIFECYCLE ================= */
@@ -120,5 +145,11 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('window-all-closed', () => {
         if (process.platform !== 'darwin') app.quit()
+    })
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow()
+        }
     })
 }

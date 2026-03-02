@@ -15,8 +15,8 @@ export const execAsync = (cmd: string) => promisify(exec)(cmd, { maxBuffer: 1024
  */
 export async function getSystemFonts(): Promise<string[]> {
     const fallbacks = [
-        'JetBrains Mono', 'Consolas', 'Courier New', 'Segoe UI',
-        'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
+        'JetBrains Mono', 'Menlo', 'Monaco', 'SF Pro Display', 'Helvetica Neue',
+        'Consolas', 'Courier New', 'Segoe UI', 'Roboto', 'Ubuntu Mono', 'Arial', 'monospace', 'sans-serif'
     ]
     try {
         let fonts: string[] = []
@@ -28,10 +28,10 @@ export async function getSystemFonts(): Promise<string[]> {
                 .filter(Boolean)
         } else if (process.platform === 'darwin') {
             try {
-                const { stdout } = await execAsync('atsutil font -list | grep "^\\s*Family:" | awk -F ": " \'{print $2}\'')
+                const { stdout } = await execAsync('LC_ALL=C atsutil font -list | grep "^\\s*Family:" | awk -F ": " \'{print $2}\'')
                 fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
             } catch {
-                const { stdout } = await execAsync('system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
+                const { stdout } = await execAsync('LC_ALL=C system_profiler SPFontsDataType | grep "Family:" | awk -F ": " \'{print $2}\'')
                 fonts = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
             }
         } else {
