@@ -132,6 +132,23 @@ export const TerminalComponent: React.FC<Props> = ({
     const [retryKey, setRetryKey] = useState<number>(0);
     const connectionInitiatedRef = useRef<boolean>(false);
     const isMountedRef = useRef<boolean>(true);
+    const outputBufferRef = useRef<Uint8Array[]>([]);
+    const animationFrameRef = useRef<number | null>(null);
+
+    const processBuffer = () => {
+        if (outputBufferRef.current.length > 0 && xtermRef.current) {
+            const totalLength = outputBufferRef.current.reduce((acc, val) => acc + val.length, 0);
+            const combined = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of outputBufferRef.current) {
+                combined.set(chunk, offset);
+                offset += chunk.length;
+            }
+            outputBufferRef.current = [];
+            xtermRef.current.write(combined);
+        }
+        animationFrameRef.current = null;
+    };
 
     const safeFit = () => {
         if (isMountedRef.current && xtermRef.current && fitAddonRef.current && connIdRef.current) {
@@ -219,10 +236,9 @@ export const TerminalComponent: React.FC<Props> = ({
 
         const onOutput = (data: Uint8Array) => {
             if (isMountedRef.current) {
-                try {
-                    term.write(data);
-                } catch (e) {
-                    console.warn('[Terminal] write failed:', e);
+                outputBufferRef.current.push(data);
+                if (animationFrameRef.current === null) {
+                    animationFrameRef.current = requestAnimationFrame(processBuffer);
                 }
             }
         };
@@ -279,6 +295,9 @@ export const TerminalComponent: React.FC<Props> = ({
             isMountedRef.current = false;
             connectionInitiatedRef.current = false;
             if (fitTimeout) clearTimeout(fitTimeout);
+            if (animationFrameRef.current !== null) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
             resizeObserver.disconnect();
             ipcRenderer.send('ssh-close', connId);
             unsubOutput();
