@@ -93,7 +93,6 @@
       ],
       "artifactName": "YASSHClient-${version}-windows64.${ext}",
       "icon": "public/icons/YASSHClient.ico",
-      "publisherName": "YASSHClient",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
