@@ -46,24 +46,41 @@
   },
   "build": {
     "appId": "com.yash.client",
-    "productName": "YetAnotherSSHClient",
+    "productName": "YASSHClient",
     "directories": {
       "output": "release/${version}"
     },
-    "publish": [
-      "github"
-    ],
     "files": [
       "dist",
       "dist-electron"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "releaseType": "draft"
+      }
+    ],
     "mac": {
-      "artifactName": "${productName}_${version}.${ext}",
+      "artifactName": "YASSHClient-${version}-macos-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
-      "icon": "public/icons/icon1024.png"
+      "icon": "public/icons/icon1024.png",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
     },
     "win": {
       "target": [
@@ -74,24 +91,26 @@
           ]
         }
       ],
-      "artifactName": "${productName}_${version}.${ext}",
-      "icon": "public/icons/YASSHClient.ico"
+      "artifactName": "YASSHClient-${version}-windows64.${ext}",
+      "icon": "public/icons/YASSHClient.ico",
+      "publisherName": "YASSHClient",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "YetAnotherSSHClient",
       "perMachine": false,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "artifactName": "${productName}_${version}.${ext}",
+      "artifactName": "YASSHClient-${version}-linux-${arch}.${ext}",
       "category": "Utility",
       "icon": "public/icons/icon256.png"
     }
