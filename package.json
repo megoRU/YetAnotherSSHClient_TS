@@ -95,7 +95,7 @@
         }
       ],
       "artifactName": "YASSHClient-${version}-windows64.${ext}",
-      "icon": "public/icons/YASSHClient.ico",
+      "icon": "public/icons/icon1024.png",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
@@ -105,7 +105,11 @@
       "createStartMenuShortcut": true,
       "perMachine": false,
       "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "include": "electron/installer.nsh",
+      "installerIcon": "public/icons/icon1024.png",
+      "uninstallerIcon": "public/icons/icon1024.png",
+      "installerHeaderIcon": "public/icons/icon1024.png"
     },
     "linux": {
       "target": [
