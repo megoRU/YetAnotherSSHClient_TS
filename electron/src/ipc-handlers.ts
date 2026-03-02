@@ -54,7 +54,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
             const connectConfig: ConnectConfig = {
                 sock: socket,
                 username: config.user,
-                readyTimeout: 20000
+                readyTimeout: 20000,
+                keepaliveInterval: 10000,
+                keepaliveCountMax: 3
             }
 
             if (config.authType === 'key' && config.privateKeyPath) {

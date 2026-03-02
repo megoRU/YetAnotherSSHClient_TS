@@ -132,6 +132,8 @@ export const TerminalComponent: React.FC<Props> = ({
     const [retryKey, setRetryKey] = useState<number>(0);
     const connectionInitiatedRef = useRef<boolean>(false);
     const isMountedRef = useRef<boolean>(true);
+    const wasConnectedRef = useRef<boolean>(false);
+    const [countdown, setCountdown] = useState<number | null>(null);
 
     const safeFit = () => {
         if (isMountedRef.current && xtermRef.current && fitAddonRef.current && connIdRef.current) {
@@ -231,6 +233,8 @@ export const TerminalComponent: React.FC<Props> = ({
                 console.log(`[SSH Status ID: ${id}] ${data}`);
                 setStatus(data);
                 if (data === 'Установлено SSH-соединение') {
+                    wasConnectedRef.current = true;
+                    setCountdown(null);
                     if (!config.osPrettyName) {
                         ipcRenderer.send('ssh-get-os-info', connId);
                     }
@@ -307,6 +311,31 @@ export const TerminalComponent: React.FC<Props> = ({
         }
     }, [visible]);
 
+    useEffect(() => {
+        let timer: any;
+        if ((status === 'SSH-соединение закрыто' || status.includes('Error')) && wasConnectedRef.current) {
+            setCountdown(5);
+            timer = setInterval(() => {
+                setCountdown(prev => {
+                    if (prev === null) return null;
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        connectionInitiatedRef.current = false;
+                        setRetryKey(k => k + 1);
+                        return null;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => {
+            if (timer) clearInterval(timer);
+        };
+    }, [status]);
+
+    const isWaiting = status !== 'Установлено SSH-соединение';
+    const isFailed = status.includes('Error') || status === 'SSH-соединение закрыто';
+
     return (
         <div className="terminal-container" style={{
             width: '100%',
@@ -319,7 +348,7 @@ export const TerminalComponent: React.FC<Props> = ({
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'
         }}>
-            {status !== 'Установлено SSH-соединение' && (
+            {isWaiting && (
                 <div style={{
                     position: 'absolute',
                     top: 0,
@@ -336,7 +365,7 @@ export const TerminalComponent: React.FC<Props> = ({
                     padding: '20px',
                     textAlign: 'center'
                 }}>
-                    {!status.includes('Error') ? (
+                    {!isFailed ? (
                         <div className="loading-spinner" style={{
                             width: '40px',
                             height: '40px',
@@ -348,10 +377,18 @@ export const TerminalComponent: React.FC<Props> = ({
                     ) : (
                         <div style={{color: '#e81123', fontSize: '24px', marginBottom: '10px'}}>⚠️</div>
                     )}
-                    <div style={{fontWeight: 'bold', maxWidth: '80%', wordBreak: 'break-word'}}>{status}</div>
-                    {status.includes('Error') && (
+                    <div style={{fontWeight: 'bold', maxWidth: '80%', wordBreak: 'break-word'}}>
+                        {status}
+                        {countdown !== null && (
+                            <div style={{fontSize: '0.9em', opacity: 0.7, marginTop: '5px'}}>
+                                Переподключение через {countdown} сек...
+                            </div>
+                        )}
+                    </div>
+                    {isFailed && (
                         <button
                             onClick={() => {
+                                setCountdown(null);
                                 connectionInitiatedRef.current = false;
                                 setRetryKey(prev => prev + 1);
                             }}
@@ -366,7 +403,7 @@ export const TerminalComponent: React.FC<Props> = ({
                                 marginTop: '10px'
                             }}
                         >
-                            Попробовать снова
+                            {status === 'SSH-соединение закрыто' ? 'Переподключиться' : 'Попробовать снова'}
                         </button>
                     )}
                 </div>
