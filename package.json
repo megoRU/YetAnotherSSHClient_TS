@@ -4,6 +4,9 @@
   "version": "1.0.3",
   "description": "A modern multi-platform SSH client built with React and Electron",
   "author": "YetAnotherSSHClient Team <support@yash.client>",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
