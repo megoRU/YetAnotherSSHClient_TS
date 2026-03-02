@@ -175,6 +175,7 @@ export const TerminalComponent: React.FC<Props> = ({
             fontSize: terminalFontSize,
             allowProposedApi: true,
             scrollback: 5000,
+            scrollSensitivity: 2,
         });
         const fitAddon = new FitAddon();
         const clipboardAddon = new ClipboardAddon();
