@@ -106,10 +106,7 @@
       "perMachine": false,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "include": "electron/installer.nsh",
-      "installerIcon": "public/icons/icon1024.png",
-      "uninstallerIcon": "public/icons/icon1024.png",
-      "installerHeaderIcon": "public/icons/icon1024.png"
+      "include": "electron/installer.nsh"
     },
     "linux": {
       "target": [
