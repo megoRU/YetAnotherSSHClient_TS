@@ -195,23 +195,6 @@ function App() {
     }, [config]);
 
     const addTab = useCallback((type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
-        let existingId: string | null = null;
-        if (type === 'ssh' && sshConfig) {
-            const existingTab = tabs.find(t =>
-                t.type === 'ssh' &&
-                t.config?.id === sshConfig.id &&
-                t.config?.host === sshConfig.host &&
-                t.config?.user === sshConfig.user &&
-                t.config?.port === sshConfig.port
-            );
-            if (existingTab) existingId = existingTab.id;
-        }
-
-        if (existingId) {
-            setActiveTabId(existingId);
-            return;
-        }
-
         const newId = generateId();
         setTabs(prev => [...prev, {id: newId, type, title, config: sshConfig}]);
         setActiveTabId(newId);
@@ -669,17 +652,19 @@ function App() {
                                 }}
                             >
                                 {tab.title}
-                                <div className="tab-close-btn" onClick={(e) => closeTab(e, tab.id)} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '20px',
-                                    height: '20px',
-                                    borderRadius: '50%',
-                                    transition: 'background-color 0.2s'
-                                }}>
-                                    <X size={12}/>
-                                </div>
+                                {!(tabs.length === 1 && tab.type === 'home') && (
+                                    <div className="tab-close-btn" onClick={(e) => closeTab(e, tab.id)} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '20px',
+                                        height: '20px',
+                                        borderRadius: '50%',
+                                        transition: 'background-color 0.2s'
+                                    }}>
+                                        <X size={12}/>
+                                    </div>
+                                )}
                             </div>
                         ))}
                         <div style={{padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer'}}
@@ -885,7 +870,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.2
+                                            Версия: 1.0.3
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();

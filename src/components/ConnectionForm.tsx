@@ -46,7 +46,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
     };
 
     return (
-        <div style={{padding: '40px', maxWidth: '500px'}}>
+        <div style={{padding: '40px', maxWidth: '500px', userSelect: 'none'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px'}}>
                 <div style={{
                     width: '50px',
@@ -76,7 +76,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                             padding: '10px',
                             borderRadius: '6px',
                             border: '1px solid var(--border-color)',
-                            background: 'rgba(0,0,0,0.03)'
+                            background: 'rgba(0,0,0,0.03)',
+                            userSelect: 'text'
                         }}
                     />
                 </div>
@@ -95,7 +96,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                                 padding: '10px',
                                 borderRadius: '6px',
                                 border: '1px solid var(--border-color)',
-                                background: 'rgba(0,0,0,0.03)'
+                                background: 'rgba(0,0,0,0.03)',
+                                userSelect: 'text'
                             }}
                         />
                     </div>
@@ -112,7 +114,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                                 padding: '10px',
                                 borderRadius: '6px',
                                 border: '1px solid var(--border-color)',
-                                background: 'rgba(0,0,0,0.03)'
+                                background: 'rgba(0,0,0,0.03)',
+                                userSelect: 'text'
                             }}
                         />
                     </div>
@@ -131,7 +134,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                             padding: '10px',
                             borderRadius: '6px',
                             border: '1px solid var(--border-color)',
-                            background: 'rgba(0,0,0,0.03)'
+                            background: 'rgba(0,0,0,0.03)',
+                            userSelect: 'text'
                         }}
                     />
                 </div>
@@ -172,7 +176,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                                     padding: '10px',
                                     borderRadius: '6px',
                                     border: '1px solid var(--border-color)',
-                                    background: 'rgba(0,0,0,0.03)'
+                                    background: 'rgba(0,0,0,0.03)',
+                                    userSelect: 'text'
                                 }}
                             />
                             <button
@@ -208,7 +213,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                                     paddingRight: '40px',
                                     borderRadius: '6px',
                                     border: '1px solid var(--border-color)',
-                                    background: 'rgba(0,0,0,0.03)'
+                                    background: 'rgba(0,0,0,0.03)',
+                                    userSelect: 'text'
                                 }}
                             />
                             <div
