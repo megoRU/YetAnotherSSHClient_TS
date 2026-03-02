@@ -34,9 +34,17 @@ YetAnotherSSHClient — лёгкий SSH-клиент на ReactJS для быс
 
 - Если при запуске появляется ошибка **«Приложение повреждено»**, выполните в терминале команду:
   ```bash
-  sudo xattr -rd com.apple.quarantine /Applications/YetAnotherSSHClient.app
+  sudo xattr -cr /Applications/YetAnotherSSHClient.app
   ```
-- После первого запуска появится предупреждение о неподтверждённом разработчике — нажмите **Готово**.
+  Или, если не помогает:
+  ```bash
+  chmod +x /Applications/YetAnotherSSHClient.app/Contents/MacOS/YetAnotherSSHClient
+  ```
+- Для диагностики причин отказа в запуске, попробуйте запустить приложение напрямую через Терминал:
+  ```bash
+  /Applications/YetAnotherSSHClient.app/Contents/MacOS/YetAnotherSSHClient
+  ```
+- После первого запуска может появиться предупреждение о неподтверждённом разработчике — нажмите **Готово**.
 - Откройте **Системные настройки** → **Конфиденциальность и безопасность**.
 - Внизу окна появится сообщение о заблокированном приложении — нажмите **Всё равно открыть**.
 
