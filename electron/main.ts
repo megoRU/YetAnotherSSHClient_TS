@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, powerSaveBlocker } from 'electron'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +6,16 @@ import { loadConfig, saveConfig } from './src/config.js'
 import { cleanupAll } from './src/ssh-manager.js'
 import { checkUpdates } from './src/update-service.js'
 import { registerIpcHandlers } from './src/ipc-handlers.js'
+
+/* ================= PERFORMANCE OPTIMIZATION ================= */
+
+// Отключаем троттлинг фоновых процессов и оптимизируем GPU
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-background-timer-throttling')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('ignore-gpu-blacklist')
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('enable-zero-copy')
 
 /* ================= ERRORS ================= */
 
@@ -62,7 +72,8 @@ function createWindow(): void {
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
-            nodeIntegration: false
+            nodeIntegration: false,
+            backgroundThrottling: false
         },
         title: 'YetAnotherSSHClient'
     })
@@ -130,6 +141,14 @@ if (!app.requestSingleInstanceLock()) {
     app.whenReady().then(() => {
         if (process.platform === 'win32') {
             app.setAppUserModelId('com.yash.client')
+        }
+
+        // Отключаем App Nap на macOS для стабильной производительности терминала
+        if (process.platform === 'darwin') {
+            if (typeof app.setAppNapAllowed === 'function') {
+                app.setAppNapAllowed(false)
+            }
+            powerSaveBlocker.start('prevent-app-suspension')
         }
 
         // Регистрация обработчиков IPC
