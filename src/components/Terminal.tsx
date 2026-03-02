@@ -208,15 +208,30 @@ export const TerminalComponent: React.FC<Props> = ({
             ipcRenderer.send('ssh-input', {id: connId, data});
         });
 
-        term.onKey(e => {
-            // Ctrl+Shift+C (67 is the code for 'C')
-            if (e.domEvent.ctrlKey && e.domEvent.shiftKey && e.domEvent.keyCode === 67) {
-                const selection = term.getSelection();
-                if (selection) {
-                    navigator.clipboard.writeText(selection);
+        term.attachCustomKeyEventHandler((e) => {
+            if (e.type === 'keydown') {
+                const isMac = ipcRenderer.platform === 'darwin';
+                // Ctrl+Shift+C or Cmd+C (on Mac)
+                const isCopy = (isMac && e.metaKey && e.code === 'KeyC') || (e.ctrlKey && e.shiftKey && e.code === 'KeyC');
+                // Ctrl+Shift+V or Cmd+V (on Mac)
+                const isPaste = (isMac && e.metaKey && e.code === 'KeyV') || (e.ctrlKey && e.shiftKey && e.code === 'KeyV');
+
+                if (isCopy) {
+                    const selection = term.getSelection();
+                    if (selection) {
+                        navigator.clipboard.writeText(selection);
+                    }
+                    return false;
                 }
-                e.domEvent.preventDefault();
+
+                if (isPaste) {
+                    navigator.clipboard.readText().then(text => {
+                        ipcRenderer.send('ssh-input', { id: connId, data: text });
+                    });
+                    return false;
+                }
             }
+            return true;
         });
 
         const onOutput = (data: Uint8Array) => {
