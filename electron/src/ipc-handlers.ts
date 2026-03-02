@@ -1,0 +1,157 @@
+import { ipcMain, dialog, shell, app, type IpcMainEvent, BrowserWindow } from 'electron'
+import { Client, PseudoTtyOptions, type ConnectConfig } from 'ssh2'
+import * as net from 'node:net'
+import * as fs from 'node:fs'
+import { loadConfig, saveConfig } from './config.js'
+import { getSystemFonts } from './font-service.js'
+import { sshClients, shellStreams, sshSockets, cleanupConnection, cleanupAll } from './ssh-manager.js'
+import { AppConfig, SshConnectPayload } from './types.js'
+
+/**
+ * Регистрирует все IPC-обработчики приложения.
+ *
+ * @param {() => BrowserWindow | null} getMainWindow - Функция для получения актуального экземпляра главного окна.
+ */
+export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
+    // Конфигурация
+    ipcMain.handle('get-config', () => loadConfig())
+    ipcMain.handle('save-config', (_, config: AppConfig) => saveConfig(config))
+
+    // Системные ресурсы
+    ipcMain.handle('get-system-fonts', () => getSystemFonts())
+    ipcMain.handle('select-key-file', async () => {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [
+                { name: 'Keys', extensions: ['*', 'pem', 'ppk'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        })
+        if (canceled) return null
+        return filePaths[0]
+    })
+
+    // SSH Соединения
+    ipcMain.on('ssh-connect', (event: IpcMainEvent, payload: SshConnectPayload) => {
+        const { id, config, cols = 80, rows = 24 } = payload
+
+        // Предварительная очистка если сессия с таким ID уже была
+        sshSockets.get(id)?.destroy()
+        sshClients.get(id)?.destroy()
+        shellStreams.delete(id)
+        sshClients.delete(id)
+        sshSockets.delete(id)
+
+        const sshClient = new Client()
+        sshClients.set(id, sshClient)
+
+        const socket = net.connect(config.port || 22, config.host)
+        sshSockets.set(id, socket)
+
+        socket.on('connect', () => {
+            socket.setNoDelay(true)
+
+            const connectConfig: ConnectConfig = {
+                sock: socket,
+                username: config.user,
+                readyTimeout: 20000
+            }
+
+            if (config.authType === 'key' && config.privateKeyPath) {
+                try {
+                    connectConfig.privateKey = fs.readFileSync(config.privateKeyPath)
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err)
+                    event.reply(`ssh-error-${id}`, `Failed to read private key: ${message}`)
+                    cleanupConnection(id)
+                    return
+                }
+            } else {
+                connectConfig.password = Buffer.from(config.password ?? '', 'base64').toString('utf8')
+            }
+
+            sshClient.connect(connectConfig)
+        })
+
+        socket.on('error', (err: Error) => {
+            event.reply(`ssh-error-${id}`, `Socket error: ${err.message}`)
+            cleanupConnection(id)
+        })
+
+        sshClient.on('ready', () => {
+            event.reply(`ssh-status-${id}`, 'Установлено SSH-соединение')
+
+            const pty: PseudoTtyOptions = { rows, cols, term: 'xterm-256color' }
+
+            sshClient.shell(pty, (err, stream) => {
+                if (err || !stream) {
+                    event.reply(`ssh-error-${id}`, err?.message ?? 'Shell error')
+                    return
+                }
+
+                shellStreams.set(id, stream)
+
+                stream.on('data', (chunk: Buffer) => {
+                    event.reply(`ssh-output-${id}`, chunk)
+                })
+
+                stream.on('close', () => {
+                    sshClient.end()
+                    event.reply(`ssh-status-${id}`, 'SSH-соединение закрыто')
+                })
+            })
+        })
+
+        sshClient.on('error', (err: Error) => {
+            event.reply(`ssh-error-${id}`, err.message)
+            cleanupConnection(id)
+        })
+    })
+
+    ipcMain.on('ssh-input', (_, payload: { id: string; data: string }) => {
+        shellStreams.get(payload.id)?.write(payload.data)
+    })
+
+    ipcMain.on('ssh-resize', (_, payload: { id: string; cols: number; rows: number }) => {
+        shellStreams.get(payload.id)?.setWindow(payload.rows, payload.cols, 0, 0)
+    })
+
+    ipcMain.on('ssh-get-os-info', (event: IpcMainEvent, id: string) => {
+        const client = sshClients.get(id)
+        if (client) {
+            client.exec('cat /etc/os-release', (err, stream) => {
+                if (err) return
+                let output = ''
+                stream.on('data', (data: Buffer) => {
+                    output += data.toString()
+                }).on('close', () => {
+                    event.reply(`ssh-os-info-${id}`, output)
+                })
+            })
+        }
+    })
+
+    ipcMain.on('ssh-close', (_, id: string) => cleanupConnection(id))
+
+    // Управление окном
+    ipcMain.on('window-minimize', () => getMainWindow()?.minimize())
+    ipcMain.on('window-maximize', () => {
+        const win = getMainWindow()
+        if (win) {
+            if (win.isMaximized()) {
+                win.unmaximize()
+            } else {
+                win.maximize()
+            }
+        }
+    })
+    ipcMain.on('window-close', () => {
+        cleanupAll()
+        const win = getMainWindow()
+        if (win) win.destroy()
+        app.exit(0)
+    })
+
+    // Внешние ссылки
+    ipcMain.on('open-external', (_, url: string) => shell.openExternal(url))
+}
