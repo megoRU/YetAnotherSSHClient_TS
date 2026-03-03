@@ -22,6 +22,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     lastUpdateCheck: 0
 }
 
+let cachedConfig: AppConfig | null = null
+
 /**
  * Загружает конфигурацию из файла.
  * Если файл не существует или поврежден, возвращает конфигурацию по умолчанию.
@@ -29,12 +31,22 @@ export const DEFAULT_CONFIG: AppConfig = {
  * @returns {AppConfig} Объект конфигурации приложения.
  */
 export function loadConfig(): AppConfig {
-    if (!fs.existsSync(configPath)) return DEFAULT_CONFIG
-    try {
-        return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as AppConfig
-    } catch {
-        return DEFAULT_CONFIG
+    if (cachedConfig) return cachedConfig
+
+    let config: AppConfig
+    if (!fs.existsSync(configPath)) {
+        config = { ...DEFAULT_CONFIG }
+    } else {
+        try {
+            const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+            config = { ...DEFAULT_CONFIG, ...data }
+        } catch {
+            config = { ...DEFAULT_CONFIG }
+        }
     }
+
+    cachedConfig = config
+    return config
 }
 
 /**
@@ -43,5 +55,6 @@ export function loadConfig(): AppConfig {
  * @param {AppConfig} config - Объект конфигурации для сохранения.
  */
 export function saveConfig(config: AppConfig): void {
+    cachedConfig = config
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }

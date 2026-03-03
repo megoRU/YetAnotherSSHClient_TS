@@ -15,7 +15,19 @@ import { AppConfig, SshConnectPayload } from './types.js'
 export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     // Конфигурация
     ipcMain.handle('get-config', () => loadConfig())
-    ipcMain.handle('save-config', (_, config: AppConfig) => saveConfig(config))
+    ipcMain.handle('save-config', (_, config: AppConfig) => {
+        const win = getMainWindow()
+        if (win) {
+            const isMaximized = win.isMaximized()
+            const bounds = isMaximized ? win.getNormalBounds() : win.getBounds()
+            config.x = Math.round(bounds.x)
+            config.y = Math.round(bounds.y)
+            config.width = Math.round(bounds.width)
+            config.height = Math.round(bounds.height)
+            config.maximized = isMaximized
+        }
+        saveConfig(config)
+    })
 
     // Системные ресурсы
     ipcMain.handle('get-system-fonts', () => getSystemFonts())

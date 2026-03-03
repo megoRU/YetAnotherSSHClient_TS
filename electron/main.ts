@@ -89,27 +89,46 @@ function createWindow(): void {
     const saveWindowState = () => {
         if (saveTimeout) clearTimeout(saveTimeout)
         saveTimeout = setTimeout(() => {
-            if (!mainWindow) return
+            if (!mainWindow || mainWindow.isDestroyed()) return
             const isMaximized = mainWindow.isMaximized()
             const bounds = isMaximized ? mainWindow.getNormalBounds() : mainWindow.getBounds()
             const current = loadConfig()
 
-            current.x = Math.round(bounds.x)
-            current.y = Math.round(bounds.y)
-            current.width = Math.round(bounds.width)
-            current.height = Math.round(bounds.height)
+            const x = Math.round(bounds.x)
+            const y = Math.round(bounds.y)
+            const width = Math.round(bounds.width)
+            const height = Math.round(bounds.height)
+
+            // Проверяем, изменились ли параметры, чтобы избежать лишних записей на диск
+            if (current.x === x &&
+                current.y === y &&
+                current.width === width &&
+                current.height === height &&
+                current.maximized === isMaximized) {
+                return
+            }
+
+            current.x = x
+            current.y = y
+            current.width = width
+            current.height = height
             current.maximized = isMaximized
 
             saveConfig(current)
         }, 500)
     }
 
-    mainWindow.on('resize', saveWindowState)
-    mainWindow.on('move', saveWindowState)
-    mainWindow.on('maximize', saveWindowState)
-    mainWindow.on('unmaximize', saveWindowState)
-
-    mainWindow.once('ready-to-show', () => mainWindow?.show())
+    mainWindow.once('ready-to-show', () => {
+        mainWindow?.show()
+        // Навешиваем слушатели после того, как окно показано и стабилизировано
+        setTimeout(() => {
+            if (!mainWindow || mainWindow.isDestroyed()) return
+            mainWindow.on('resize', saveWindowState)
+            mainWindow.on('move', saveWindowState)
+            mainWindow.on('maximize', saveWindowState)
+            mainWindow.on('unmaximize', saveWindowState)
+        }, 1000)
+    })
 
     const themeParam = `?theme=${encodeURIComponent(config.theme)}`
     if (process.env.VITE_DEV_SERVER_URL) {
