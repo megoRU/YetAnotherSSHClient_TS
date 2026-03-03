@@ -358,7 +358,7 @@ export const TerminalComponent: React.FC<Props> = ({
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            paddingLeft: '25px',
+            paddingLeft: '15px',
             boxSizing: 'border-box',
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'

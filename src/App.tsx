@@ -638,12 +638,13 @@ function App() {
                                      width: '100%'
                                  }}>
                                 {tab.type === 'home' && (
-                                    <div style={{padding: '40px 20px', maxWidth: '800px', margin: '0 auto'}}>
-                                        <h2 style={{marginBottom: '30px', textAlign: 'left'}}>Сервера</h2>
-                                        <div className="server-list" style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '5px'
+                                    <div style={{padding: '40px', textAlign: 'center'}}>
+                                        <h2 style={{marginBottom: '30px'}}>Сервера</h2>
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fill, 180px)',
+                                            gap: '20px',
+                                            justifyContent: 'center'
                                         }}>
                                             {config.favorites.map((fav, i) => (
                                                 <div
@@ -652,37 +653,40 @@ function App() {
                                                     onClick={() => addTab('ssh', fav.name, fav)}
                                                     onContextMenu={(e) => onContextMenu(e, fav)}
                                                     style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        padding: '18px 25px',
-                                                        margin: '0 10px',
-                                                        borderRadius: '12px',
+                                                        width: '180px',
+                                                        height: '180px',
+                                                        padding: '15px',
+                                                        borderRadius: '15px',
                                                         cursor: 'pointer',
-                                                        gap: '20px',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '12px',
+                                                        boxSizing: 'border-box',
                                                         transition: 'background-color 0.2s'
                                                     }}
                                                 >
                                                     <div style={{
-                                                        width: '40px',
-                                                        height: '40px',
+                                                        width: '80px',
+                                                        height: '80px',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        flexShrink: 0
+                                                        justifyContent: 'center'
                                                     }}>
                                                         {fav.osPrettyName ? (
                                                             <img src={getOSIcon(fav.osPrettyName)}
                                                                  style={{
-                                                                     width: '32px',
-                                                                     height: '32px',
+                                                                     width: '64px',
+                                                                     height: '64px',
                                                                      objectFit: 'contain'
                                                                  }} alt="OS Icon"/>
                                                         ) : (
-                                                            <Server size={32} style={{opacity: 0.7}}/>
+                                                            <Server size={64} style={{opacity: 0.7}}/>
                                                         )}
                                                     </div>
-                                                    <div style={{display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
-                                                        <div style={{fontWeight: 'bold', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%'}}>
+                                                        <div style={{fontWeight: 'bold', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>
                                                             {fav.name || fav.host}
                                                         </div>
                                                         <div style={{opacity: 0.6, fontSize: '0.9em'}}>
