@@ -394,9 +394,11 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'connect' ? null : 'connect')}
                         >
@@ -440,9 +442,11 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
                         >
@@ -486,9 +490,11 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'help' ? null : 'help')}
                         >
@@ -527,7 +533,6 @@ function App() {
                 </div>
 
                 <div style={{fontSize: '12px', opacity: 1, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold'}}>
-                    YetAnotherSSHClient
                     {updateAvailable && (
                         <div
                             onClick={() => ipcRenderer.send('open-external', updateAvailable.url)}
@@ -829,7 +834,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.6
+                                            Версия: 1.0.7
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();
