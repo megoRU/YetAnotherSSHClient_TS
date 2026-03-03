@@ -654,10 +654,11 @@ function App() {
                                                     style={{
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        padding: '12px 15px',
-                                                        borderRadius: '8px',
+                                                        padding: '18px 25px',
+                                                        margin: '0 10px',
+                                                        borderRadius: '12px',
                                                         cursor: 'pointer',
-                                                        gap: '15px',
+                                                        gap: '20px',
                                                         transition: 'background-color 0.2s'
                                                     }}
                                                 >
