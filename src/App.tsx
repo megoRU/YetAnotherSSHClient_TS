@@ -624,9 +624,21 @@ function App() {
                                 )}
                             </div>
                         ))}
-                        <div style={{padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer'}}
-                             onClick={() => addTab('home', 'Главная')}>
-                            <Plus size={14}/>
+                        <div style={{display: 'flex', alignItems: 'center', padding: '0 5px'}}>
+                            <div className="tab-add-btn"
+                                 onClick={() => addTab('home', 'Главная')}
+                                 style={{
+                                     display: 'flex',
+                                     alignItems: 'center',
+                                     justifyContent: 'center',
+                                     width: '24px',
+                                     height: '24px',
+                                     borderRadius: '50%',
+                                     cursor: 'pointer',
+                                     transition: 'background-color 0.2s'
+                                 }}>
+                                <Plus size={14}/>
+                            </div>
                         </div>
                     </div>
 
