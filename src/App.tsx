@@ -130,7 +130,6 @@ function App() {
     const [activeTabId, setActiveTabId] = useState<string>('0');
     const isConnectingRef = useRef(false);
     const [tabs, setTabs] = useState<Tab[]>([{id: '0', type: 'home', title: 'Главная'}]);
-    const [search, setSearch] = useState('');
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, config: SSHConfig } | null>(null);
     const [updateAvailable, setUpdateAvailable] = useState<{ version: string, url: string } | null>(null);
@@ -356,11 +355,6 @@ function App() {
         }
     };
 
-    const filteredFavorites = config.favorites.filter(f =>
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.host.toLowerCase().includes(search.toLowerCase())
-    );
-
     return (
         <div className="app-container"
              style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
@@ -398,7 +392,8 @@ function App() {
                                 height: '22px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                borderRadius: '4px'
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'connect' ? null : 'connect')}
                         >
@@ -446,7 +441,8 @@ function App() {
                                 height: '22px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                borderRadius: '4px'
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
                         >
@@ -494,7 +490,8 @@ function App() {
                                 height: '22px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                borderRadius: '4px'
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'help' ? null : 'help')}
                         >
@@ -643,8 +640,8 @@ function App() {
                                      width: '100%'
                                  }}>
                                 {tab.type === 'home' && (
-                                    <div style={{padding: '40px', textAlign: 'center'}}>
-                                        <h2 style={{marginBottom: '30px'}}>Сервера</h2>
+                                    <div style={{padding: '40px', textAlign: 'center', userSelect: 'none'}}>
+                                        <h2 style={{marginBottom: '30px', userSelect: 'none'}}>Сервера</h2>
                                         <div style={{
                                             display: 'grid',
                                             gridTemplateColumns: 'repeat(auto-fill, 180px)',
