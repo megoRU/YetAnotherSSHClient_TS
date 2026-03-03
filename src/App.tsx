@@ -872,7 +872,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.5
+                                            Версия: 1.0.6
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();
