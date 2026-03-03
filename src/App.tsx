@@ -110,9 +110,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
         if (this.state.hasError) {
             return (
                 <div style={{padding: '40px', color: 'red', background: 'white', height: '100vh'}}>
-                    <h1>Something went wrong.</h1>
+                    <h1>Что-то пошло не так.</h1>
                     <pre>{this.state.error?.toString()}</pre>
-                    <button onClick={() => window.location.reload()}>Reload Application</button>
+                    <button onClick={() => window.location.reload()}>Перезагрузить приложение</button>
                 </div>
             );
         }
@@ -130,7 +130,6 @@ function App() {
     const [activeTabId, setActiveTabId] = useState<string>('0');
     const isConnectingRef = useRef(false);
     const [tabs, setTabs] = useState<Tab[]>([{id: '0', type: 'home', title: 'Главная'}]);
-    const [search, setSearch] = useState('');
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, config: SSHConfig } | null>(null);
     const [updateAvailable, setUpdateAvailable] = useState<{ version: string, url: string } | null>(null);
@@ -356,11 +355,6 @@ function App() {
         }
     };
 
-    const filteredFavorites = config.favorites.filter(f =>
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.host.toLowerCase().includes(search.toLowerCase())
-    );
-
     return (
         <div className="app-container"
              style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
@@ -394,9 +388,12 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'connect' ? null : 'connect')}
                         >
@@ -440,9 +437,12 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
                         >
@@ -486,9 +486,12 @@ function App() {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 padding: '0 10px',
-                                height: '100%',
+                                margin: '4px 5px',
+                                height: '22px',
                                 display: 'flex',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                borderRadius: '4px',
+                                userSelect: 'none'
                             }}
                             onClick={() => setOpenMenu(openMenu === 'help' ? null : 'help')}
                         >
@@ -527,7 +530,6 @@ function App() {
                 </div>
 
                 <div style={{fontSize: '12px', opacity: 1, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold'}}>
-                    YetAnotherSSHClient
                     {updateAvailable && (
                         <div
                             onClick={() => ipcRenderer.send('open-external', updateAvailable.url)}
@@ -581,53 +583,6 @@ function App() {
             </div>
 
             <div style={{display: 'flex', flex: 1, minHeight: 0}}>
-                {/* Sidebar */}
-                <div className="sidebar" style={{
-                    width: '190px',
-                    borderRight: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column'
-                }}>
-                    <div style={{padding: '15px'}}>
-                        <div style={{fontWeight: 'bold', marginBottom: '10px', opacity: 0.6}}>ИЗБРАННОЕ</div>
-                        <div className="search-box" style={{position: 'relative', width: '100%'}}>
-                            <Search size={14} style={{
-                                position: 'absolute',
-                                left: '8px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                opacity: 0.5
-                            }}/>
-                            <input
-                                placeholder="Поиск..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    boxSizing: 'border-box',
-                                    padding: '6px 6px 6px 28px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'rgba(0,0,0,0.05)'
-                                }}
-                            />
-                        </div>
-                    </div>
-                    <div className="favorites-list" style={{flex: 1, overflowY: 'auto'}}>
-                        {filteredFavorites.map((fav, i) => (
-                            <div
-                                key={i}
-                                className="fav-item"
-                                onClick={() => addTab('ssh', fav.name, fav)}
-                                onContextMenu={(e) => onContextMenu(e, fav)}
-                                style={{fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer'}}
-                            >
-                                {fav.name}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
                 {/* Main Content */}
                 <div className="main-content" style={{flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0}}>
                     {/* Tab Bar */}
@@ -669,9 +624,21 @@ function App() {
                                 )}
                             </div>
                         ))}
-                        <div style={{padding: '0 10px', display: 'flex', alignItems: 'center', cursor: 'pointer'}}
-                             onClick={() => addTab('home', 'Главная')}>
-                            <Plus size={14}/>
+                        <div style={{display: 'flex', alignItems: 'center', padding: '0 5px'}}>
+                            <div className="tab-add-btn"
+                                 onClick={() => addTab('home', 'Главная')}
+                                 style={{
+                                     display: 'flex',
+                                     alignItems: 'center',
+                                     justifyContent: 'center',
+                                     width: '24px',
+                                     height: '24px',
+                                     borderRadius: '50%',
+                                     cursor: 'pointer',
+                                     transition: 'background-color 0.2s'
+                                 }}>
+                                <Plus size={14}/>
+                            </div>
                         </div>
                     </div>
 
@@ -685,8 +652,8 @@ function App() {
                                      width: '100%'
                                  }}>
                                 {tab.type === 'home' && (
-                                    <div style={{padding: '40px', textAlign: 'center'}}>
-                                        <h2 style={{marginBottom: '30px'}}>Выберите сервер для подключения</h2>
+                                    <div style={{padding: '40px', textAlign: 'center', userSelect: 'none'}}>
+                                        <h2 style={{marginBottom: '30px', userSelect: 'none'}}>Сервера</h2>
                                         <div style={{
                                             display: 'grid',
                                             gridTemplateColumns: 'repeat(auto-fill, 180px)',
@@ -696,7 +663,7 @@ function App() {
                                             {config.favorites.map((fav, i) => (
                                                 <div
                                                     key={i}
-                                                    className="fav-card"
+                                                    className="server-list-item"
                                                     onClick={() => addTab('ssh', fav.name, fav)}
                                                     onContextMenu={(e) => onContextMenu(e, fav)}
                                                     style={{
@@ -710,32 +677,36 @@ function App() {
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
                                                         gap: '12px',
-                                                        boxSizing: 'border-box'
+                                                        boxSizing: 'border-box',
+                                                        transition: 'background-color 0.2s'
                                                     }}
                                                 >
                                                     <div style={{
                                                         width: '80px',
                                                         height: '80px',
-                                                        borderRadius: '12px',
-                                                        background: '#c81e51',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        color: 'white',
-                                                        overflow: 'hidden'
+                                                        justifyContent: 'center'
                                                     }}>
                                                         {fav.osPrettyName ? (
                                                             <img src={getOSIcon(fav.osPrettyName)}
                                                                  style={{
-                                                                     width: '100%',
-                                                                     height: '100%',
-                                                                     objectFit: 'cover'
+                                                                     width: '64px',
+                                                                     height: '64px',
+                                                                     objectFit: 'contain'
                                                                  }} alt="OS Icon"/>
                                                         ) : (
-                                                            <Server size={40}/>
+                                                            <Server size={64} style={{opacity: 0.7}}/>
                                                         )}
                                                     </div>
-                                                    <div style={{fontWeight: 'bold'}}>{fav.name}</div>
+                                                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%'}}>
+                                                        <div style={{fontWeight: 'bold', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>
+                                                            {fav.name || fav.host}
+                                                        </div>
+                                                        <div style={{opacity: 0.6, fontSize: '0.9em'}}>
+                                                            ssh, {fav.user}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -872,7 +843,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.6
+                                            Версия: 1.0.7
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();
