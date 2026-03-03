@@ -110,9 +110,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
         if (this.state.hasError) {
             return (
                 <div style={{padding: '40px', color: 'red', background: 'white', height: '100vh'}}>
-                    <h1>Something went wrong.</h1>
+                    <h1>Что-то пошло не так.</h1>
                     <pre>{this.state.error?.toString()}</pre>
-                    <button onClick={() => window.location.reload()}>Reload Application</button>
+                    <button onClick={() => window.location.reload()}>Перезагрузить приложение</button>
                 </div>
             );
         }
@@ -581,53 +581,6 @@ function App() {
             </div>
 
             <div style={{display: 'flex', flex: 1, minHeight: 0}}>
-                {/* Sidebar */}
-                <div className="sidebar" style={{
-                    width: '190px',
-                    borderRight: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column'
-                }}>
-                    <div style={{padding: '15px'}}>
-                        <div style={{fontWeight: 'bold', marginBottom: '10px', opacity: 0.6}}>ИЗБРАННОЕ</div>
-                        <div className="search-box" style={{position: 'relative', width: '100%'}}>
-                            <Search size={14} style={{
-                                position: 'absolute',
-                                left: '8px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                opacity: 0.5
-                            }}/>
-                            <input
-                                placeholder="Поиск..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    boxSizing: 'border-box',
-                                    padding: '6px 6px 6px 28px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'rgba(0,0,0,0.05)'
-                                }}
-                            />
-                        </div>
-                    </div>
-                    <div className="favorites-list" style={{flex: 1, overflowY: 'auto'}}>
-                        {filteredFavorites.map((fav, i) => (
-                            <div
-                                key={i}
-                                className="fav-item"
-                                onClick={() => addTab('ssh', fav.name, fav)}
-                                onContextMenu={(e) => onContextMenu(e, fav)}
-                                style={{fontWeight: 'bold', padding: '8px 15px', cursor: 'pointer'}}
-                            >
-                                {fav.name}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
                 {/* Main Content */}
                 <div className="main-content" style={{flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0}}>
                     {/* Tab Bar */}
@@ -685,57 +638,56 @@ function App() {
                                      width: '100%'
                                  }}>
                                 {tab.type === 'home' && (
-                                    <div style={{padding: '40px', textAlign: 'center'}}>
-                                        <h2 style={{marginBottom: '30px'}}>Выберите сервер для подключения</h2>
-                                        <div style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fill, 180px)',
-                                            gap: '20px',
-                                            justifyContent: 'center'
+                                    <div style={{padding: '40px 20px', maxWidth: '800px', margin: '0 auto'}}>
+                                        <h2 style={{marginBottom: '30px', textAlign: 'left'}}>Сервера</h2>
+                                        <div className="server-list" style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '5px'
                                         }}>
                                             {config.favorites.map((fav, i) => (
                                                 <div
                                                     key={i}
-                                                    className="fav-card"
+                                                    className="server-list-item"
                                                     onClick={() => addTab('ssh', fav.name, fav)}
                                                     onContextMenu={(e) => onContextMenu(e, fav)}
                                                     style={{
-                                                        width: '180px',
-                                                        height: '180px',
-                                                        padding: '15px',
-                                                        borderRadius: '15px',
-                                                        cursor: 'pointer',
                                                         display: 'flex',
-                                                        flexDirection: 'column',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '12px',
-                                                        boxSizing: 'border-box'
+                                                        padding: '12px 15px',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        gap: '15px',
+                                                        transition: 'background-color 0.2s'
                                                     }}
                                                 >
                                                     <div style={{
-                                                        width: '80px',
-                                                        height: '80px',
-                                                        borderRadius: '12px',
-                                                        background: '#c81e51',
+                                                        width: '40px',
+                                                        height: '40px',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        color: 'white',
-                                                        overflow: 'hidden'
+                                                        flexShrink: 0
                                                     }}>
                                                         {fav.osPrettyName ? (
                                                             <img src={getOSIcon(fav.osPrettyName)}
                                                                  style={{
-                                                                     width: '100%',
-                                                                     height: '100%',
-                                                                     objectFit: 'cover'
+                                                                     width: '32px',
+                                                                     height: '32px',
+                                                                     objectFit: 'contain'
                                                                  }} alt="OS Icon"/>
                                                         ) : (
-                                                            <Server size={40}/>
+                                                            <Server size={32} style={{opacity: 0.7}}/>
                                                         )}
                                                     </div>
-                                                    <div style={{fontWeight: 'bold'}}>{fav.name}</div>
+                                                    <div style={{display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
+                                                        <div style={{fontWeight: 'bold', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                                            {fav.name || fav.host}
+                                                        </div>
+                                                        <div style={{opacity: 0.6, fontSize: '0.9em'}}>
+                                                            ssh, {fav.user}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

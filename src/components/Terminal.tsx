@@ -272,11 +272,11 @@ export const TerminalComponent: React.FC<Props> = ({
             if (isMountedRef.current) {
                 console.error(`[SSH Error ID: ${id}] ${data}`);
                 try {
-                    term.write(`\r\n\x1b[31mError: ${data}\x1b[0m\r\n`);
+                    term.write(`\r\n\x1b[31mОшибка: ${data}\x1b[0m\r\n`);
                 } catch (e) {
                     // ignore
                 }
-                setStatus(`Error: ${data}`);
+                setStatus(`Ошибка: ${data}`);
             }
         };
 
@@ -328,7 +328,7 @@ export const TerminalComponent: React.FC<Props> = ({
 
     useEffect(() => {
         let timer: any;
-        if ((status === 'SSH-соединение закрыто' || status.includes('Error')) && wasConnectedRef.current) {
+        if ((status === 'SSH-соединение закрыто' || status.includes('Ошибка')) && wasConnectedRef.current) {
             setCountdown(5);
             timer = setInterval(() => {
                 setCountdown(prev => {
@@ -349,7 +349,7 @@ export const TerminalComponent: React.FC<Props> = ({
     }, [status]);
 
     const isWaiting = status !== 'Установлено SSH-соединение';
-    const isFailed = status.includes('Error') || status === 'SSH-соединение закрыто';
+    const isFailed = status.includes('Ошибка') || status === 'SSH-соединение закрыто';
 
     return (
         <div className="terminal-container" style={{
