@@ -304,6 +304,13 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
+    ipcMain.on('sftp-cancel-upload', (_, id: string) => {
+        // Since ssh2 fastPut doesn't support easy cancellation,
+        // we destroy the whole client to stop any ongoing work for this tab.
+        // The frontend will handle reconnection if needed.
+        cleanupConnection(id)
+    })
+
     ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }) => {
         const { id, path, mode } = payload
         const sftp = sftpClients.get(id)

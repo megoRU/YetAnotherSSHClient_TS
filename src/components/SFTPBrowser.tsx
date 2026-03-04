@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle, X} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
@@ -31,6 +31,7 @@ interface Props {
 }
 
 export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
+    const [theme, setTheme] = useState(document.body.className);
     const [path, setPath] = useState('');
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -89,6 +90,12 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setLoading(false);
         }
     }, [id]);
+
+    useEffect(() => {
+        const observer = new MutationObserver(() => setTheme(document.body.className));
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         // Prevent default behavior for drag and drop on the entire window
@@ -357,7 +364,24 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
+    const handleCancelUpload = () => {
+        if (!confirm('Вы уверены, что хотите отменить все текущие загрузки? Это приведет к переподключению.')) return;
+        ipcRenderer.send('sftp-cancel-upload', id);
+        setActiveUploads([]);
+        setProgress({});
+        isConnectingRef.current = false;
+        setStatus('Подключение...');
+        // The connection will be re-established by the sftp-connect call in useEffect
+        // because we destroyed it in the backend.
+        // Wait a bit and trigger a reconnect.
+        setTimeout(() => {
+            ipcRenderer.send('sftp-connect', {id, config});
+        }, 500);
+    };
+
     const displayStyle = visible ? 'flex' : 'none';
+    const isDark = theme.includes('dark');
+    const primaryRed = isDark ? '#fb4934' : '#c81e51';
 
     return (
         <div
@@ -384,12 +408,13 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             {isDragging && (
                 <div style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(200, 30, 81, 0.15)',
-                    border: '3px dashed #c81e51',
+                    top: '10px',
+                    left: '10px',
+                    right: '10px',
+                    bottom: '10px',
+                    background: isDark ? 'rgba(251, 73, 52, 0.15)' : 'rgba(200, 30, 81, 0.15)',
+                    border: `3px dashed ${primaryRed}`,
+                    borderRadius: '10px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -408,7 +433,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         alignItems: 'center',
                         gap: '15px',
                         boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-                        color: '#c81e51'
+                        color: primaryRed
                     }}>
                         <UploadCloud size={64} strokeWidth={1.5} />
                         <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>
@@ -527,25 +552,31 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         {activeUploads.map((upload) => (
                             <tr key={`upload-${upload.remotePath}`} className="sftp-row" style={{ opacity: 0.8 }}>
                                 <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                    <File size={18} color="#c81e51" className="spin" />
+                                    <File size={18} color={primaryRed} className="spin" />
                                 </td>
                                 <td style={{ padding: '8px 10px', fontStyle: 'italic' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span>{upload.filename}</span>
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '10px', color: '#c81e51' }}>{upload.progress}%</span>
-                                            {/* Note: Cancellation not implemented on backend for fastPut, so X is just a visual placeholder for now or we could omit it */}
+                                            <span style={{ fontSize: '10px', color: primaryRed }}>{upload.progress}%</span>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }}
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', alignItems: 'center' }}
+                                                title="Отменить загрузку"
+                                            >
+                                                <X size={14} />
+                                            </button>
                                         </div>
                                     </div>
                                     <div style={{ width: '100%', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '4px' }}>
-                                        <div style={{ width: `${upload.progress}%`, height: '100%', background: '#c81e51', transition: 'width 0.2s' }} />
+                                        <div style={{ width: `${upload.progress}%`, height: '100%', background: primaryRed, transition: 'width 0.2s' }} />
                                     </div>
                                 </td>
                                 <td style={{ padding: '8px 10px', opacity: 0.7 }}>{upload.size ? formatSize(upload.size) : '--'}</td>
                                 <td style={{ padding: '8px 10px', opacity: 0.7, fontSize: '12px' }}>Загрузка...</td>
                             </tr>
                         ))}
-                        {files.map((file, index) => {
+                        {files.filter(f => !activeUploads.some(u => u.filename === f.filename)).map((file, index) => {
                             const isDir = (file.attrs.mode & 0o040000) !== 0;
                             const remotePath = `${path}/${file.filename}`.replace(/\/+/g, '/');
                             const currentProgress = progress[remotePath];
@@ -576,10 +607,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                                         {file.filename}
                                         {currentProgress !== undefined && (
-                                            <div style={{fontSize: '10px', color: '#c81e51', marginTop: '2px'}}>
+                                            <div style={{fontSize: '10px', color: primaryRed, marginTop: '2px'}}>
                                                 {currentProgress === 100 ? 'Готово' : `Загрузка: ${currentProgress}%`}
                                                 <div style={{width: '100px', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '2px'}}>
-                                                    <div style={{width: `${currentProgress}%`, height: '100%', background: '#c81e51'}} />
+                                                    <div style={{width: `${currentProgress}%`, height: '100%', background: primaryRed}} />
                                                 </div>
                                             </div>
                                         )}
@@ -593,13 +624,15 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                 </tr>
                             );
                         })}
+                        {!loading && files.length === 0 && !error && activeUploads.length === 0 && (
+                            <tr>
+                                <td colSpan={4} style={{padding: '40px', textAlign: 'center', opacity: 0.5}}>
+                                    Папка пуста
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
-                {!loading && files.length === 0 && !error && activeUploads.length === 0 && (
-                    <div style={{padding: '40px', textAlign: 'center', opacity: 0.5}}>
-                        Папка пуста
-                    </div>
-                )}
             </div>
 
             {contextMenu && (
@@ -766,7 +799,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                     width: 30px;
                     height: 30px;
                     border: 3px solid var(--border-color);
-                    border-top: 3px solid #c81e51;
+                    border-top: 3px solid ${primaryRed};
                     border-radius: 50%;
                     animation: spin 1s linear infinite;
                 }
