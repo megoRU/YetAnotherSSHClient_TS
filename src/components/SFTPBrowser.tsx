@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle, X} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle, X, Plus, Minus} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
