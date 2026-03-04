@@ -80,14 +80,23 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         setModal({ type: 'error', errorMessage: msg });
     };
 
+    const wasConnectedRef = useRef(false);
+
+    const normalizeRemotePath = (p: string) => {
+        if (!p) return '/';
+        const normalized = p.replace(/\/+/g, '/').replace(/\/$/, '');
+        return normalized || '/';
+    };
+
     const loadDirectory = useCallback(async (dirPath: string) => {
-        if (status !== 'SFTP-сессия готова' && !isConnectingRef.current) return;
+        if (!wasConnectedRef.current && status !== 'SFTP-сессия готова' && !isConnectingRef.current) return;
+        const normalizedPath = normalizeRemotePath(dirPath);
         setLoading(true);
         setError(null);
         setSelectedFilenames([]);
         setLastSelectedIndex(-1);
         try {
-            const list = await ipcRenderer.invoke('sftp-readdir', {id, path: dirPath});
+            const list = await ipcRenderer.invoke('sftp-readdir', {id, path: normalizedPath});
             const filteredList = (list || []).filter((f: FileEntry) => !f.filename.startsWith('.'));
             filteredList.sort((a: FileEntry, b: FileEntry) => {
                 const aIsDir = (a.attrs.mode & 0o040000) !== 0;
@@ -125,6 +134,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, async (msg: string) => {
             setStatus(msg);
             if (msg === 'SFTP-сессия готова') {
+                wasConnectedRef.current = true;
                 if (!isConnectingRef.current) {
                     isConnectingRef.current = true;
 
@@ -161,20 +171,31 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
         const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: Progress) => {
             setActiveTransfers(prev => {
-                const existing = prev.find(t => t.remotePath === data.remotePath && t.type === data.type && t.status === 'active');
-                if (existing) {
-                    return prev.map(t =>
-                        (t.remotePath === data.remotePath && t.type === data.type && t.status === 'active')
-                        ? { ...t, progress: data.progress, size: data.total || t.size, status: data.progress >= 100 ? 'success' : 'active' }
-                        : t
-                    );
+                const normalizedPath = normalizeRemotePath(data.remotePath);
+                const existingIndex = prev.findIndex(t =>
+                    normalizeRemotePath(t.remotePath) === normalizedPath &&
+                    t.type === data.type &&
+                    t.status === 'active'
+                );
+
+                if (existingIndex !== -1) {
+                    const newTransfers = [...prev];
+                    const existing = newTransfers[existingIndex];
+                    newTransfers[existingIndex] = {
+                        ...existing,
+                        progress: data.progress,
+                        size: data.total || existing.size,
+                        status: data.progress >= 100 ? 'success' : 'active'
+                    };
+                    return newTransfers;
                 }
+
                 // If not found (e.g. background recursive download starts a new file), add it
                 if (data.progress < 100) {
                     const newTransfer: Transfer = {
                         id: Math.random().toString(36).substr(2, 9),
-                        filename: data.remotePath.split('/').pop() || 'unknown',
-                        remotePath: data.remotePath,
+                        filename: normalizedPath.split('/').pop() || normalizedPath || 'unknown',
+                        remotePath: normalizedPath,
                         progress: data.progress,
                         size: data.total,
                         type: data.type,
@@ -218,7 +239,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const newTransfers: Transfer[] = filenames.map(filename => ({
             id: Math.random().toString(36).substr(2, 9),
             filename,
-            remotePath: `${path}/${filename}`.replace(/\/+/g, '/'),
+            remotePath: normalizeRemotePath(`${path}/${filename}`),
             progress: 0,
             type: 'download',
             status: 'active'
@@ -238,6 +259,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 }));
                 await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
             }
+            loadDirectory(path);
         } catch (err: any) {
             const msg = err.message || String(err);
             if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
@@ -412,7 +434,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const newTransfers: Transfer[] = droppedFiles.map(f => ({
             id: Math.random().toString(36).substr(2, 9),
             filename: f.name,
-            remotePath: `${path}/${f.name}`.replace(/\/+/g, '/'),
+            remotePath: normalizeRemotePath(`${path}/${f.name}`),
             progress: 0,
             size: f.size,
             type: 'upload',
