@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell, app, type IpcMainEvent, BrowserWindow } from 'e
 import { Client, PseudoTtyOptions, type ConnectConfig } from 'ssh2'
 import * as net from 'node:net'
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { loadConfig, saveConfig } from './config.js'
 import { getSystemFonts } from './font-service.js'
 import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
@@ -535,8 +536,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
-    ipcMain.handle('sftp-cancel-upload', async (_, payload: { id: string; remotePath: string }) => {
-        const { id, remotePath } = payload
+    ipcMain.handle('sftp-cancel-upload', async (_, payload: { id: string; remotePath?: string }) => {
+        const { id } = payload
         cleanupConnection(id)
         return true
     })
