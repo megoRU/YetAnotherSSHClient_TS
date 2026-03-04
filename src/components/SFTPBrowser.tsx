@@ -88,8 +88,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         return normalized || '/';
     };
 
-    const loadDirectory = useCallback(async (dirPath: string) => {
-        if (status !== 'SFTP-сессия готова') return;
+    const loadDirectory = useCallback(async (dirPath: string, force = false) => {
+        if (!force && status !== 'SFTP-сессия готова') return;
         const normalizedPath = normalizeRemotePath(dirPath);
         setLoading(true);
         setError(null);
@@ -125,6 +125,14 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         return () => observer.disconnect();
     }, []);
 
+    const connect = useCallback(() => {
+        setStatus('Подключение...');
+        setError(null);
+        isConnectingRef.current = false;
+        wasConnectedRef.current = false;
+        ipcRenderer.send('sftp-connect', {id, config});
+    }, [id, config]);
+
     useEffect(() => {
         // Prevent default behavior for drag and drop on the entire window
         const preventDefault = (e: DragEvent) => e.preventDefault();
@@ -152,9 +160,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                     }
 
                     ipcRenderer.invoke('sftp-realpath', {id, path: '.'}).then((resolvedPath: string) => {
-                        loadDirectory(resolvedPath);
+                        loadDirectory(resolvedPath, true);
                     }).catch(() => {
-                        loadDirectory('/');
+                        loadDirectory('/', true);
                     });
                 }
             } else {
@@ -207,7 +215,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             });
         });
 
-        ipcRenderer.send('sftp-connect', {id, config});
+        connect();
 
         return () => {
             window.removeEventListener('dragover', preventDefault);
@@ -763,8 +771,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 )}
 
                 {error && (
-                    <div style={{padding: '20px', color: '#cc241d', background: 'rgba(204, 36, 29, 0.1)', margin: '10px', borderRadius: '4px'}}>
-                        <strong>Ошибка:</strong> {error}
+                    <div style={{padding: '20px', color: '#cc241d', background: 'rgba(204, 36, 29, 0.1)', margin: '10px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div><strong>Ошибка:</strong> {error}</div>
+                        <button className="btn-primary" onClick={connect} style={{padding: '5px 15px', fontSize: '12px'}}>
+                            Переподключиться
+                        </button>
                     </div>
                 )}
 
