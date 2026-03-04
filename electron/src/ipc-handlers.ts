@@ -216,6 +216,19 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
+    ipcMain.handle('sftp-realpath', async (_, payload: { id: string; path: string }) => {
+        const { id, path } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        return new Promise((resolve, reject) => {
+            sftp.realpath(path, (err, resolvedPath) => {
+                if (err) reject(err)
+                else resolve(resolvedPath)
+            })
+        })
+    })
+
     ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
@@ -227,6 +240,85 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                 else resolve(list)
             })
         })
+    })
+
+    ipcMain.handle('sftp-download-file', async (event, payload: { id: string; remotePath: string; filename: string }) => {
+        const { id, remotePath, filename } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        const { canceled, filePath } = await dialog.showSaveDialog({
+            defaultPath: filename,
+            title: 'Сохранить файл'
+        })
+
+        if (canceled || !filePath) return null
+
+        return new Promise((resolve, reject) => {
+            sftp.fastGet(remotePath, filePath, {
+                step: (total_transferred, chunk, total) => {
+                    const progress = Math.round((total_transferred / total) * 100)
+                    const win = getMainWindow()
+                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
+                }
+            }, (err) => {
+                if (err) reject(err)
+                else resolve(filePath)
+            })
+        })
+    })
+
+    ipcMain.handle('sftp-upload-file', async (event, payload: { id: string; remoteDir: string }) => {
+        const { id, remoteDir } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+            properties: ['openFile', 'multiSelections'],
+            title: 'Выберите файлы для загрузки'
+        })
+
+        if (canceled || filePaths.length === 0) return null
+
+        const results = []
+        for (const localPath of filePaths) {
+            const filename = path.basename(localPath)
+            const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
+
+            const result = await new Promise((resolve, reject) => {
+                sftp.fastPut(localPath, remotePath, {
+                    step: (total_transferred, chunk, total) => {
+                        const progress = Math.round((total_transferred / total) * 100)
+                        const win = getMainWindow()
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
+                    }
+                }, (err) => {
+                    if (err) reject(err)
+                    else resolve(remotePath)
+                })
+            })
+            results.push(result)
+        }
+        return results
+    })
+
+    ipcMain.handle('sftp-open-in-editor', async (event, payload: { id: string; remotePath: string; filename: string }) => {
+        const { id, remotePath, filename } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        const tmpDir = app.getPath('temp')
+        const localPath = path.join(tmpDir, `yash_${Date.now()}_${filename}`)
+
+        await new Promise((resolve, reject) => {
+            sftp.fastGet(remotePath, localPath, (err) => {
+                if (err) reject(err)
+                else resolve(localPath)
+            })
+        })
+
+        await shell.openPath(localPath)
+        return true
     })
 
     ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }) => {
