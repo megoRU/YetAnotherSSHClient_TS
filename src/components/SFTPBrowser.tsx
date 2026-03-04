@@ -37,6 +37,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [progress, setProgress] = useState<Record<string, number>>({});
     const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const dragCounter = useRef(0);
 
     // Selection state
     const [selectedFilenames, setSelectedFilenames] = useState<string[]>([]);
@@ -285,20 +286,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragging(true);
+        dragCounter.current++;
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            setIsDragging(true);
+        }
     };
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragging(true);
     };
 
     const handleDragLeave = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        // Only set to false if we leave the container itself, not its children
-        if (e.currentTarget === e.target) {
+        dragCounter.current--;
+        if (dragCounter.current === 0) {
             setIsDragging(false);
         }
     };
@@ -307,6 +310,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
+        dragCounter.current = 0;
 
         const droppedFiles = Array.from(e.dataTransfer.files);
         if (droppedFiles.length === 0) return;
