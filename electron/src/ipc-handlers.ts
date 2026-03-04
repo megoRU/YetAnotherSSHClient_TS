@@ -395,7 +395,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
-        if (!sftp) throw new Error('SFTP-клиент не найден')
+        if (!sftp) return null // Return null instead of throwing to prevent renderer crash during teardown
 
         return new Promise((resolve, reject) => {
             sftp.readdir(path, (err, list) => {

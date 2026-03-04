@@ -89,7 +89,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     };
 
     const loadDirectory = useCallback(async (dirPath: string) => {
-        if (!wasConnectedRef.current && status !== 'SFTP-сессия готова' && !isConnectingRef.current) return;
+        if (status !== 'SFTP-сессия готова') return;
         const normalizedPath = normalizeRemotePath(dirPath);
         setLoading(true);
         setError(null);
@@ -480,6 +480,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
             setActiveTransfers(prev => prev.map(t => t.status === 'active' ? { ...t, status: 'cancelled' } : t));
             isConnectingRef.current = false;
+            wasConnectedRef.current = false; // Reset connection state
             setStatus('Подключение...');
             setModal(null);
 
