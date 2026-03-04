@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2} from 'lucide-react';
+import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
 
@@ -35,11 +36,25 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [status, setStatus] = useState('Подключение...');
     const [progress, setProgress] = useState<Record<string, number>>({});
     const [isDragging, setIsDragging] = useState(false);
+
+    // Selection state
+    const [selectedFilenames, setSelectedFilenames] = useState<string[]>([]);
+    const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
+
+    // Context menu state
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
+
+    // Modal states
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions', file?: FileEntry } | null>(null);
+    const [modalInput, setModalInput] = useState('');
+
     const isConnectingRef = useRef(false);
 
     const loadDirectory = useCallback(async (dirPath: string) => {
         setLoading(true);
         setError(null);
+        setSelectedFilenames([]);
+        setLastSelectedIndex(-1);
         try {
             const list = await ipcRenderer.invoke('sftp-readdir', {id, path: dirPath});
             const filteredList = list.filter((f: FileEntry) => f.filename !== '.' && f.filename !== '..');
@@ -146,23 +161,82 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
-    const handleDelete = async (filename: string, isDir: boolean) => {
-        if (!confirm(`Вы уверены, что хотите удалить ${filename}?`)) return;
-        const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
+    const handleDelete = async () => {
+        const itemsToDelete = selectedFilenames.length > 0 ? selectedFilenames : (modal?.file ? [modal.file.filename] : []);
+        if (itemsToDelete.length === 0) return;
+
+        setLoading(true);
         try {
-            await ipcRenderer.invoke('sftp-rm', {id, path: remotePath, isDir});
+            for (const filename of itemsToDelete) {
+                const file = files.find(f => f.filename === filename);
+                if (!file) continue;
+                const isDir = (file.attrs.mode & 0o040000) !== 0;
+                const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
+                await ipcRenderer.invoke('sftp-rm', {id, path: remotePath, isDir});
+            }
+            setModal(null);
             loadDirectory(path);
         } catch (err: any) {
             alert(`Ошибка удаления: ${err.message}`);
+            setLoading(false);
         }
     };
 
-    const formatSize = (bytes: number) => {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const handleRename = async () => {
+        if (!modal?.file || !modalInput) return;
+        const oldPath = `${path}/${modal.file.filename}`.replace(/\/+/g, '/');
+        const newPath = `${path}/${modalInput}`.replace(/\/+/g, '/');
+        try {
+            await ipcRenderer.invoke('sftp-rename', {id, oldPath, newPath});
+            setModal(null);
+            loadDirectory(path);
+        } catch (err: any) {
+            alert(`Ошибка переименования: ${err.message}`);
+        }
+    };
+
+    const handlePermissions = async () => {
+        if (!modal?.file || !modalInput) return;
+        const remotePath = `${path}/${modal.file.filename}`.replace(/\/+/g, '/');
+        try {
+            // mode from input (e.g. 755) to octal number
+            const mode = parseInt(modalInput, 8);
+            await ipcRenderer.invoke('sftp-chmod', {id, path: remotePath, mode});
+            setModal(null);
+            loadDirectory(path);
+        } catch (err: any) {
+            alert(`Ошибка изменения прав: ${err.message}`);
+        }
+    };
+
+    const handleFileClick = (e: React.MouseEvent, filename: string, index: number) => {
+        if (e.shiftKey && lastSelectedIndex !== -1) {
+            const start = Math.min(lastSelectedIndex, index);
+            const end = Math.max(lastSelectedIndex, index);
+            const newSelection = files.slice(start, end + 1).map(f => f.filename);
+            setSelectedFilenames(Array.from(new Set([...selectedFilenames, ...newSelection])));
+        } else if (e.ctrlKey || e.metaKey) {
+            setSelectedFilenames(prev =>
+                prev.includes(filename) ? prev.filter(f => f !== filename) : [...prev, filename]
+            );
+            setLastSelectedIndex(index);
+        } else {
+            setSelectedFilenames([filename]);
+            setLastSelectedIndex(index);
+        }
+    };
+
+    const onFileContextMenu = (e: React.MouseEvent, file: FileEntry) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!selectedFilenames.includes(file.filename)) {
+            setSelectedFilenames([file.filename]);
+        }
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            file: file
+        });
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -182,10 +256,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         e.stopPropagation();
         setIsDragging(false);
 
-        const files = Array.from(e.dataTransfer.files);
-        if (files.length === 0) return;
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length === 0) return;
 
-        const filePaths = files.map(f => (f as any).path).filter(Boolean);
+        const filePaths = droppedFiles.map(f => (f as any).path).filter(Boolean);
         if (filePaths.length === 0) return;
 
         try {
@@ -202,6 +276,14 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
     const displayStyle = visible ? 'flex' : 'none';
 
     return (
@@ -210,6 +292,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            onClick={() => {
+                setSelectedFilenames([]);
+                setLastSelectedIndex(-1);
+            }}
             style={{
                 display: displayStyle,
                 flexDirection: 'column',
@@ -229,7 +315,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 alignItems: 'center',
                 gap: '10px',
                 background: 'rgba(0,0,0,0.02)'
-            }}>
+            }} onClick={e => e.stopPropagation()}>
                 <button
                     onClick={handleGoUp}
                     disabled={path === '/' || !path || loading}
@@ -331,21 +417,29 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                             <th style={{padding: '10px'}}>Имя</th>
                             <th style={{padding: '10px', width: '100px'}}>Размер</th>
                             <th style={{padding: '10px', width: '150px'}}>Дата</th>
-                            <th style={{padding: '10px', width: '150px'}}>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {files.map((file) => {
+                        {files.map((file, index) => {
                             const isDir = (file.attrs.mode & 0o040000) !== 0;
                             const remotePath = `${path}/${file.filename}`.replace(/\/+/g, '/');
                             const currentProgress = progress[remotePath];
+                            const isSelected = selectedFilenames.includes(file.filename);
 
                             return (
                                 <tr
                                     key={file.filename}
-                                    className="sftp-row"
-                                    onDoubleClick={() => handleNavigate(file.filename, isDir)}
-                                    style={{cursor: isDir ? 'pointer' : 'default', position: 'relative'}}
+                                    className={`sftp-row ${isSelected ? 'selected' : ''}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFileClick(e, file.filename, index);
+                                    }}
+                                    onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        handleNavigate(file.filename, isDir);
+                                    }}
+                                    onContextMenu={(e) => onFileContextMenu(e, file)}
+                                    style={{cursor: 'pointer', position: 'relative'}}
                                 >
                                     <td style={{padding: '8px 10px', textAlign: 'center'}}>
                                         {isDir ? <Folder size={18} color="#d79921" /> : <File size={18} opacity={0.7} />}
@@ -367,29 +461,139 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     <td style={{padding: '8px 10px', opacity: 0.7, fontSize: '12px'}}>
                                         {new Date(file.attrs.mtime * 1000).toLocaleString()}
                                     </td>
-                                    <td style={{padding: '8px 10px'}}>
-                                        <div style={{display: 'flex', gap: '5px'}}>
-                                            {!isDir && (
-                                                <>
-                                                    <button onClick={() => handleDownload(file.filename)} title="Скачать" className="action-btn">
-                                                        <Download size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleEdit(file.filename)} title="Открыть в редакторе" className="action-btn">
-                                                        <Edit size={14} />
-                                                    </button>
-                                                </>
-                                            )}
-                                            <button onClick={() => handleDelete(file.filename, isDir)} title="Удалить" className="action-btn danger">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </td>
                                 </tr>
                             );
                         })}
                     </tbody>
                 </table>
             </div>
+
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    onClose={() => setContextMenu(null)}
+                    options={[
+                        {
+                            label: (contextMenu.file && (contextMenu.file.attrs.mode & 0o040000) !== 0) ? 'Перейти' : 'Открыть',
+                            icon: <MousePointer2 size={14} />,
+                            onClick: () => {
+                                if (contextMenu.file) {
+                                    handleNavigate(contextMenu.file.filename, (contextMenu.file.attrs.mode & 0o040000) !== 0);
+                                }
+                            }
+                        },
+                        {
+                            label: 'Переименовать',
+                            icon: <Edit size={14} />,
+                            onClick: () => {
+                                if (contextMenu.file) {
+                                    setModal({ type: 'rename', file: contextMenu.file });
+                                    setModalInput(contextMenu.file.filename);
+                                }
+                            }
+                        },
+                        {
+                            label: 'Права доступа',
+                            icon: <Shield size={14} />,
+                            onClick: () => {
+                                if (contextMenu.file) {
+                                    setModal({ type: 'permissions', file: contextMenu.file });
+                                    setModalInput((contextMenu.file.attrs.mode & 0o777).toString(8));
+                                }
+                            }
+                        },
+                        {
+                            label: 'Редактировать',
+                            icon: <Edit size={14} />,
+                            onClick: () => {
+                                if (contextMenu.file) {
+                                    handleEdit(contextMenu.file.filename);
+                                }
+                            }
+                        },
+                        {
+                            label: 'Скачать',
+                            icon: <Download size={14} />,
+                            onClick: () => {
+                                if (contextMenu.file) {
+                                    handleDownload(contextMenu.file.filename);
+                                }
+                            }
+                        },
+                        {
+                            label: 'Удалить',
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => {
+                                setModal({ type: 'delete', file: contextMenu.file });
+                            }
+                        }
+                    ]}
+                />
+            )}
+
+            {/* Custom Modals */}
+            {modal && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 2000
+                }} onClick={() => setModal(null)}>
+                    <div style={{
+                        background: 'var(--bg-color)',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        width: '400px',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                        border: '1px solid var(--border-color)'
+                    }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ marginTop: 0 }}>
+                            {modal.type === 'delete' && 'Удаление'}
+                            {modal.type === 'rename' && 'Переименование'}
+                            {modal.type === 'permissions' && 'Права доступа'}
+                        </h3>
+
+                        {modal.type === 'delete' && (
+                            <p>Вы уверены, что хотите удалить <b>{selectedFilenames.length > 1 ? `${selectedFilenames.length} элементов` : modal.file?.filename}</b>?</p>
+                        )}
+
+                        {(modal.type === 'rename' || modal.type === 'permissions') && (
+                            <input
+                                autoFocus
+                                value={modalInput}
+                                onChange={e => setModalInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && (modal.type === 'rename' ? handleRename() : handlePermissions())}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    marginBottom: '20px',
+                                    background: 'var(--input-bg)',
+                                    color: 'var(--text-color)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '4px'
+                                }}
+                            />
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <button className="btn-secondary" onClick={() => setModal(null)}>Отмена</button>
+                            <button
+                                className={modal.type === 'delete' ? 'btn-primary' : 'btn-primary'}
+                                onClick={() => {
+                                    if (modal.type === 'delete') handleDelete();
+                                    else if (modal.type === 'rename') handleRename();
+                                    else if (modal.type === 'permissions') handlePermissions();
+                                }}
+                            >
+                                {modal.type === 'delete' ? 'Удалить' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .sftp-container.dragging::after {
@@ -412,6 +616,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 .sftp-row:hover {
                     background: rgba(0,0,0,0.05);
                 }
+                .sftp-row.selected {
+                    background: rgba(200, 30, 81, 0.15) !important;
+                }
                 .spin {
                     animation: spin 1s linear infinite;
                 }
@@ -426,27 +633,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                     border-top: 3px solid #c81e51;
                     border-radius: 50%;
                     animation: spin 1s linear infinite;
-                }
-                .action-btn {
-                    padding: 4px;
-                    background: transparent;
-                    border: 1px solid var(--border-color);
-                    border-radius: 4px;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: inherit;
-                    opacity: 0.7;
-                    transition: all 0.2s;
-                }
-                .action-btn:hover {
-                    opacity: 1;
-                    background: rgba(0,0,0,0.05);
-                }
-                .action-btn.danger:hover {
-                    color: #cc241d;
-                    border-color: #cc241d;
                 }
             `}</style>
         </div>

@@ -230,6 +230,19 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
+    ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }) => {
+        const { id, path, mode } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        return new Promise((resolve, reject) => {
+            sftp.chmod(path, mode, (err) => {
+                if (err) reject(err)
+                else resolve(true)
+            })
+        })
+    })
+
     ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
