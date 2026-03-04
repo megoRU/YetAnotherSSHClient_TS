@@ -230,6 +230,39 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
+    ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string }[] }) => {
+        const { id, files } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+            properties: ['openDirectory'],
+            title: 'Выберите папку для сохранения'
+        })
+
+        if (canceled || filePaths.length === 0) return null
+        const destDir = filePaths[0]
+
+        const results = []
+        for (const file of files) {
+            const localPath = path.join(destDir, file.filename)
+            const result = await new Promise((resolve, reject) => {
+                sftp.fastGet(file.remotePath, localPath, {
+                    step: (total_transferred, chunk, total) => {
+                        const progress = Math.round((total_transferred / total) * 100)
+                        const win = getMainWindow()
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: file.remotePath, progress })
+                    }
+                }, (err) => {
+                    if (err) reject(err)
+                    else resolve(localPath)
+                })
+            })
+            results.push(result)
+        }
+        return results
+    })
+
     ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }) => {
         const { id, path, mode } = payload
         const sftp = sftpClients.get(id)

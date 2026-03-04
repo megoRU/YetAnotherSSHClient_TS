@@ -57,7 +57,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         setLastSelectedIndex(-1);
         try {
             const list = await ipcRenderer.invoke('sftp-readdir', {id, path: dirPath});
-            const filteredList = list.filter((f: FileEntry) => f.filename !== '.' && f.filename !== '..');
+            const filteredList = list.filter((f: FileEntry) => !f.filename.startsWith('.'));
             filteredList.sort((a: FileEntry, b: FileEntry) => {
                 const aIsDir = (a.attrs.mode & 0o040000) !== 0;
                 const bIsDir = (b.attrs.mode & 0o040000) !== 0;
@@ -132,10 +132,21 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         loadDirectory(newPath);
     };
 
-    const handleDownload = async (filename: string) => {
-        const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
+    const handleDownload = async (filenames: string[]) => {
+        if (filenames.length === 0) return;
+
         try {
-            await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
+            if (filenames.length === 1) {
+                const filename = filenames[0];
+                const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
+                await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
+            } else {
+                const filesToDownload = filenames.map(filename => ({
+                    filename,
+                    remotePath: `${path}/${filename}`.replace(/\/+/g, '/')
+                }));
+                await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
+            }
         } catch (err: any) {
             alert(`Ошибка загрузки: ${err.message}`);
         }
@@ -516,9 +527,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                             label: 'Скачать',
                             icon: <Download size={14} />,
                             onClick: () => {
-                                if (contextMenu.file) {
-                                    handleDownload(contextMenu.file.filename);
-                                }
+                                handleDownload(selectedFilenames);
                             }
                         },
                         {
