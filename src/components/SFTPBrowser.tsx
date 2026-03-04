@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
@@ -374,6 +374,42 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 position: 'relative'
             }}
         >
+            {isDragging && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(200, 30, 81, 0.15)',
+                    border: '3px dashed #c81e51',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '20px',
+                    zIndex: 1000,
+                    pointerEvents: 'none',
+                    backdropFilter: 'blur(2px)'
+                }}>
+                    <div style={{
+                        background: 'var(--bg-color)',
+                        padding: '40px',
+                        borderRadius: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '15px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                        color: '#c81e51'
+                    }}>
+                        <UploadCloud size={64} strokeWidth={1.5} />
+                        <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>
+                            Перетащите файлы сюда для загрузки
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Toolbar */}
             <div className="sftp-toolbar" style={{
                 padding: '10px',
@@ -695,23 +731,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             )}
 
             <style>{`
-                .sftp-container.dragging::after {
-                    content: 'Перетащите файлы сюда для загрузки';
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(200, 30, 81, 0.1);
-                    border: 2px dashed #c81e51;
-                    display: flex;
-                    alignItems: center;
-                    justifyContent: center;
-                    font-weight: bold;
-                    color: #c81e51;
-                    z-index: 100;
-                    pointer-events: none;
-                }
                 .sftp-row:hover {
                     background: rgba(0,0,0,0.05);
                 }
