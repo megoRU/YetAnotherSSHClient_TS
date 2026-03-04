@@ -35,6 +35,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
     const [progress, setProgress] = useState<Record<string, number>>({});
+    const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
 
     // Selection state
@@ -102,6 +103,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 ...prev,
                 [data.remotePath]: data.progress
             }));
+            setActiveUploads(prev => prev.map(u =>
+                u.remotePath === data.remotePath ? { ...u, progress: data.progress } : u
+            ));
+
             if (data.progress >= 100) {
                 setTimeout(() => {
                     setProgress(prev => {
@@ -109,7 +114,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         delete newProgress[data.remotePath];
                         return newProgress;
                     });
-                }, 2000);
+                    setActiveUploads(prev => prev.filter(u => u.remotePath !== data.remotePath));
+                }, 1000);
             }
         });
 
@@ -161,6 +167,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
     const handleUpload = async () => {
         try {
+            // This one uses a dialog, so we don't know the filenames beforehand
+            // We'll rely on the progress event to populate activeUploads if we want to show them
+            // but for better UX, the backend could return filenames before starting if we changed it.
+            // For now, let's just refresh after completion.
             const results = await ipcRenderer.invoke('sftp-upload-file', {id, remoteDir: path});
             if (results && results.length > 0) {
                 loadDirectory(path);
@@ -299,18 +309,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         setIsDragging(false);
 
         const droppedFiles = Array.from(e.dataTransfer.files);
-        console.log('[SFTP] Dropped files count:', droppedFiles.length);
         if (droppedFiles.length === 0) return;
 
-        // Try getting path from electron-specific webUtils if available,
-        // fall back to f.path which works in some Electron configurations
         const filePaths = droppedFiles.map(f => {
             if (ipcRenderer.getPathForFile) return ipcRenderer.getPathForFile(f);
             return (f as any).path;
         }).filter(Boolean);
 
-        console.log('[SFTP] Resolved file paths:', filePaths);
         if (filePaths.length === 0) return;
+
+        // Add to active uploads immediately
+        const newUploads = droppedFiles.map(f => ({
+            filename: f.name,
+            remotePath: `${path}/${f.name}`.replace(/\/+/g, '/'),
+            progress: 0
+        }));
+        setActiveUploads(prev => [...prev, ...newUploads]);
 
         try {
             const results = await ipcRenderer.invoke('sftp-upload-files-from-paths', {
@@ -323,6 +337,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             }
         } catch (err: any) {
             alert(`Ошибка загрузки: ${err.message}`);
+            // Cleanup failed uploads
+            setActiveUploads(prev => prev.filter(u => !newUploads.find(nu => nu.remotePath === u.remotePath)));
         }
     };
 
@@ -471,6 +487,24 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         </tr>
                     </thead>
                     <tbody>
+                        {activeUploads.map((upload) => (
+                            <tr key={`upload-${upload.remotePath}`} className="sftp-row" style={{ opacity: 0.8 }}>
+                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                    <File size={18} color="#c81e51" className="spin" />
+                                </td>
+                                <td style={{ padding: '8px 10px', fontStyle: 'italic' }}>
+                                    {upload.filename}
+                                    <div style={{ width: '100%', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '4px' }}>
+                                        <div style={{ width: `${upload.progress}%`, height: '100%', background: '#c81e51', transition: 'width 0.2s' }} />
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#c81e51', marginTop: '2px' }}>
+                                        Загрузка: {upload.progress}%
+                                    </div>
+                                </td>
+                                <td style={{ padding: '8px 10px', opacity: 0.7 }}>--</td>
+                                <td style={{ padding: '8px 10px', opacity: 0.7, fontSize: '12px' }}>Сейчас</td>
+                            </tr>
+                        ))}
                         {files.map((file, index) => {
                             const isDir = (file.attrs.mode & 0o040000) !== 0;
                             const remotePath = `${path}/${file.filename}`.replace(/\/+/g, '/');
