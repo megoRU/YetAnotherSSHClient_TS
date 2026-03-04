@@ -1,6 +1,7 @@
-import {contextBridge, ipcRenderer} from 'electron'
+import {contextBridge, ipcRenderer, webUtils} from 'electron'
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   send: (channel: string, data: unknown) => ipcRenderer.send(channel, data),
   on: (channel: string, func: (...args: unknown[]) => void) => {
     const subscription = (_event: unknown, ...args: unknown[]) => func(...args);
