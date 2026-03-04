@@ -8,8 +8,6 @@ import { getSystemFonts } from './font-service.js'
 import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
 import { AppConfig, SshConnectPayload, SftpConnectPayload } from './types.js'
 
-const activeSftpStreams = new Map<string, { stream: fs.ReadStream | any, remotePath: string, id: string }>()
-
 /**
  * Регистрирует все IPC-обработчики приложения.
  *
@@ -273,6 +271,73 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
+    async function downloadRecursive(id: string, remote: string, local: string): Promise<any> {
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        return new Promise((resolve, reject) => {
+            sftp.stat(remote, (err, stats) => {
+                if (err) return reject(err)
+
+                if (stats.isDirectory()) {
+                    if (!fs.existsSync(local)) fs.mkdirSync(local, { recursive: true })
+                    sftp.readdir(remote, async (err, list) => {
+                        if (err) return reject(err)
+                        try {
+                            for (const item of list) {
+                                if (item.filename === '.' || item.filename === '..') continue
+                                await downloadRecursive(id, `${remote}/${item.filename}`.replace(/\/+/g, '/'), path.join(local, item.filename))
+                            }
+                            resolve({ remotePath: remote, localPath: local, isDir: true })
+                        } catch (re) {
+                            reject(re)
+                        }
+                    })
+                } else {
+                    let lastProgressTime = 0
+                    sftp.fastGet(remote, local, {
+                        step: (transferred, chunk, total) => {
+                            const now = Date.now()
+                            if (now - lastProgressTime > 100 || transferred === total) {
+                                lastProgressTime = now
+                                const progress = Math.round((transferred / total) * 100)
+                                const win = getMainWindow()
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total })
+                            }
+                        }
+                    }, (err) => {
+                        if (err) {
+                            // Fallback to stream for files that fastGet can't handle
+                            const readStream = sftp.createReadStream(remote)
+                            const writeStream = fs.createWriteStream(local)
+
+                            let transferred = 0
+                            readStream.on('data', (chunk) => {
+                                transferred += chunk.length
+                                const now = Date.now()
+                                if (now - lastProgressTime > 100 || transferred === stats.size) {
+                                    lastProgressTime = now
+                                    const progress = Math.round((transferred / stats.size) * 100)
+                                    const win = getMainWindow()
+                                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total: stats.size })
+                                }
+                            })
+
+                            writeStream.on('close', () => resolve({ remotePath: remote, localPath: local, size: stats.size }))
+                            writeStream.on('error', (e) => {
+                                if (fs.existsSync(local)) try { fs.unlinkSync(local) } catch {}
+                                reject(e)
+                            })
+                            readStream.on('error', reject)
+                            readStream.pipe(writeStream)
+                        }
+                        else resolve({ remotePath: remote, localPath: local, size: stats.size })
+                    })
+                }
+            })
+        })
+    }
+
     ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string; isDir?: boolean }[] }) => {
         const { id, files } = payload
         const sftp = sftpClients.get(id)
@@ -286,40 +351,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         if (canceled || filePaths.length === 0) return null
         const destDir = filePaths[0]
 
-        const downloadRecursive = async (remote: string, local: string) => {
-            return new Promise((resolve, reject) => {
-                sftp.stat(remote, async (err, stats) => {
-                    if (err) return reject(err)
-                    if (stats.isDirectory()) {
-                        if (!fs.existsSync(local)) fs.mkdirSync(local)
-                        sftp.readdir(remote, async (err, list) => {
-                            if (err) return reject(err)
-                            for (const item of list) {
-                                if (item.filename === '.' || item.filename === '..') continue
-                                await downloadRecursive(`${remote}/${item.filename}`.replace(/\/+/g, '/'), path.join(local, item.filename))
-                            }
-                            resolve(local)
-                        })
-                    } else {
-                        sftp.fastGet(remote, local, {
-                            step: (transferred, chunk, total) => {
-                                const progress = Math.round((transferred / total) * 100)
-                                const win = getMainWindow()
-                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress })
-                            }
-                        }, (err) => {
-                            if (err) reject(err)
-                            else resolve(local)
-                        })
-                    }
-                })
-            })
-        }
-
         const results = []
         for (const file of files) {
             const localPath = path.join(destDir, file.filename)
-            const result = await downloadRecursive(file.remotePath, localPath)
+            const result = await downloadRecursive(id, file.remotePath, localPath)
             results.push(result)
         }
         return results
@@ -341,11 +376,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
-        if (!sftp) throw new Error('SFTP client not found')
+        if (!sftp) throw new Error('SFTP-клиент не найден')
 
         return new Promise((resolve, reject) => {
             sftp.readdir(path, (err, list) => {
-                if (err) reject(err)
+                if (err) reject(new Error(`Ошибка чтения директории: ${err.message}`))
                 else resolve(list)
             })
         })
@@ -362,19 +397,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
 
         if (canceled || !filePath) return null
-
-        return new Promise((resolve, reject) => {
-            sftp.fastGet(remotePath, filePath, {
-                step: (total_transferred, chunk, total) => {
-                    const progress = Math.round((total_transferred / total) * 100)
-                    const win = getMainWindow()
-                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
-                }
-            }, (err) => {
-                if (err) reject(err)
-                else resolve(filePath)
-            })
-        })
+        return downloadRecursive(id, remotePath, filePath)
     })
 
     ipcMain.handle('sftp-upload-file', async (event, payload: { id: string; remoteDir: string }) => {
@@ -416,25 +439,19 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         const sftp = sftpClients.get(id)
         if (!sftp) throw new Error('SFTP-клиент не найден')
 
-        const results = []
-
-        const uploadRecursive = async (local: string, remote: string) => {
+        const uploadRecursive = async (local: string, remote: string): Promise<any> => {
             const stats = fs.statSync(local)
             if (stats.isDirectory()) {
-                // Ensure directory exists on server
-                await new Promise((resolve) => {
-                    sftp.mkdir(remote, (err) => {
-                        // Ignore error if directory already exists
-                        resolve(true)
-                    })
-                })
+                await new Promise((resolve) => sftp.mkdir(remote, () => resolve(true)))
                 const files = fs.readdirSync(local)
+                const items = []
                 for (const file of files) {
-                    await uploadRecursive(path.join(local, file), `${remote}/${file}`.replace(/\/+/g, '/'))
+                    items.push(await uploadRecursive(path.join(local, file), `${remote}/${file}`.replace(/\/+/g, '/')))
                 }
+                return { remotePath: remote, isDir: true, items }
             } else {
                 let lastProgressTime = 0
-                await new Promise((resolve, reject) => {
+                return new Promise((resolve, reject) => {
                     sftp.fastPut(local, remote, {
                         step: (transferred, chunk, total) => {
                             const now = Date.now()
@@ -449,9 +466,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                         if (err) {
                             const msg = err.message || String(err)
                             if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
-                                return resolve({ remotePath: remote, cancelled: true })
+                                resolve({ remotePath: remote, cancelled: true })
+                            } else {
+                                reject(err)
                             }
-                            reject(err)
                         } else {
                             resolve({ remotePath: remote, size: stats.size })
                         }
@@ -460,11 +478,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
             }
         }
 
+        const results = []
         for (const localPath of filePaths) {
             const filename = path.basename(localPath)
             const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
-            const result = await uploadRecursive(localPath, remotePath)
-            results.push(result)
+            results.push(await uploadRecursive(localPath, remotePath))
         }
         return results
     })
@@ -502,17 +520,17 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }) => {
         const { id, path, isDir } = payload
         const sftp = sftpClients.get(id)
-        if (!sftp) throw new Error('SFTP client not found')
+        if (!sftp) throw new Error('SFTP-клиент не найден')
 
         return new Promise((resolve, reject) => {
             if (isDir) {
                 sftp.rmdir(path, (err) => {
-                    if (err) reject(err)
+                    if (err) reject(new Error(`Ошибка удаления папки: ${err.message}`))
                     else resolve(true)
                 })
             } else {
                 sftp.unlink(path, (err) => {
-                    if (err) reject(err)
+                    if (err) reject(new Error(`Ошибка удаления файла: ${err.message}`))
                     else resolve(true)
                 })
             }
@@ -522,11 +540,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     ipcMain.handle('sftp-mkdir', async (_, payload: { id: string; path: string }) => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
-        if (!sftp) throw new Error('SFTP client not found')
+        if (!sftp) throw new Error('SFTP-клиент не найден')
 
         return new Promise((resolve, reject) => {
             sftp.mkdir(path, (err) => {
-                if (err) reject(err)
+                if (err) reject(new Error(`Ошибка создания папки: ${err.message}`))
                 else resolve(true)
             })
         })
@@ -535,11 +553,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     ipcMain.handle('sftp-rename', async (_, payload: { id: string; oldPath: string; newPath: string }) => {
         const { id, oldPath, newPath } = payload
         const sftp = sftpClients.get(id)
-        if (!sftp) throw new Error('SFTP client not found')
+        if (!sftp) throw new Error('SFTP-клиент не найден')
 
         return new Promise((resolve, reject) => {
             sftp.rename(oldPath, newPath, (err) => {
-                if (err) reject(err)
+                if (err) reject(new Error(`Ошибка переименования: ${err.message}`))
                 else resolve(true)
             })
         })

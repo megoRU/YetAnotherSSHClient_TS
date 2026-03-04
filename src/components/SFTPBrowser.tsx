@@ -69,13 +69,14 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     };
 
     const loadDirectory = useCallback(async (dirPath: string) => {
+        if (status !== 'SFTP-сессия готова' && !isConnectingRef.current) return;
         setLoading(true);
         setError(null);
         setSelectedFilenames([]);
         setLastSelectedIndex(-1);
         try {
             const list = await ipcRenderer.invoke('sftp-readdir', {id, path: dirPath});
-            const filteredList = list.filter((f: FileEntry) => !f.filename.startsWith('.'));
+            const filteredList = (list || []).filter((f: FileEntry) => !f.filename.startsWith('.'));
             filteredList.sort((a: FileEntry, b: FileEntry) => {
                 const aIsDir = (a.attrs.mode & 0o040000) !== 0;
                 const bIsDir = (b.attrs.mode & 0o040000) !== 0;
@@ -111,32 +112,37 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
         const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, async (msg: string) => {
             setStatus(msg);
-            if (msg === 'SFTP-сессия готова' && !isConnectingRef.current) {
-                isConnectingRef.current = true;
+            if (msg === 'SFTP-сессия готова') {
+                if (!isConnectingRef.current) {
+                    isConnectingRef.current = true;
 
-                // Cleanup partial files from previous cancelled uploads
-                if (pendingDeletesRef.current.length > 0) {
-                    const toDelete = [...pendingDeletesRef.current];
-                    pendingDeletesRef.current = [];
-                    for (const p of toDelete) {
-                        try {
-                            await ipcRenderer.invoke('sftp-rm', { id, path: p, isDir: false });
-                        } catch (e) {
-                            // ignore
+                    // Cleanup partial files from previous cancelled uploads
+                    if (pendingDeletesRef.current.length > 0) {
+                        const toDelete = [...pendingDeletesRef.current];
+                        pendingDeletesRef.current = [];
+                        for (const p of toDelete) {
+                            try {
+                                await ipcRenderer.invoke('sftp-rm', { id, path: p, isDir: false });
+                            } catch (e) {
+                                // ignore
+                            }
                         }
                     }
-                }
 
-                ipcRenderer.invoke('sftp-realpath', {id, path: '.'}).then((resolvedPath: string) => {
-                    loadDirectory(resolvedPath);
-                }).catch(() => {
-                    loadDirectory('/');
-                });
+                    ipcRenderer.invoke('sftp-realpath', {id, path: '.'}).then((resolvedPath: string) => {
+                        loadDirectory(resolvedPath);
+                    }).catch(() => {
+                        loadDirectory('/');
+                    });
+                }
+            } else {
+                isConnectingRef.current = false;
             }
         });
 
         const unsubError = ipcRenderer.on(`sftp-error-${id}`, (msg: string) => {
             setError(msg);
+            setStatus('Ошибка');
             setLoading(false);
             isConnectingRef.current = false;
         });
@@ -195,20 +201,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             if (filenames.length === 1) {
                 const filename = filenames[0];
                 const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
-                await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
+                const result = await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
+                if (result) loadDirectory(path);
             } else {
                 const filesToDownload = filenames.map(filename => ({
                     filename,
                     remotePath: `${path}/${filename}`.replace(/\/+/g, '/')
                 }));
-                await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
+                const results = await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
+                if (results) loadDirectory(path);
             }
         } catch (err: any) {
             const msg = err.message || String(err);
             if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
                 return;
             }
-            showError(`Ошибка загрузки: ${msg}`);
+            showError(`Ошибка скачивания: ${msg}`);
         }
     };
 
@@ -389,6 +397,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             }
             showError(`Ошибка загрузки: ${msg}`);
             // Cleanup failed uploads
+            const failedPaths = newUploads.map(u => u.remotePath);
+            pendingDeletesRef.current = Array.from(new Set([...pendingDeletesRef.current, ...failedPaths]));
             setActiveUploads(prev => prev.filter(u => !newUploads.find(nu => nu.remotePath === u.remotePath)));
         }
     };
@@ -397,7 +407,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         try {
             // Save paths for later cleanup
             const pathsToCleanup = activeUploads.map(u => u.remotePath);
-            pendingDeletesRef.current = [...pendingDeletesRef.current, ...pathsToCleanup];
+            pendingDeletesRef.current = Array.from(new Set([...pendingDeletesRef.current, ...pathsToCleanup]));
 
             ipcRenderer.invoke('sftp-cancel-upload', { id });
             setActiveUploads([]);
@@ -405,10 +415,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             isConnectingRef.current = false;
             setStatus('Подключение...');
             setModal(null);
-            // Delay reconnection to allow backend cleanup
+
+            // Re-connect after a short delay
             setTimeout(() => {
                 ipcRenderer.send('sftp-connect', {id, config});
-            }, 1000);
+            }, 1500);
         } catch (err: any) {
             showError(`Ошибка отмены: ${err.message}`);
         }
