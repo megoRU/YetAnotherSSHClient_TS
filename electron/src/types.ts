@@ -40,3 +40,11 @@ export interface SshConnectPayload {
     cols?: number
     rows?: number
 }
+
+/**
+ * Данные для SFTP-подключения
+ */
+export interface SftpConnectPayload {
+    id: string;
+    config: SSHConfig;
+}

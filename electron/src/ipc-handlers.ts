@@ -4,8 +4,8 @@ import * as net from 'node:net'
 import * as fs from 'node:fs'
 import { loadConfig, saveConfig } from './config.js'
 import { getSystemFonts } from './font-service.js'
-import { sshClients, shellStreams, sshSockets, cleanupConnection, cleanupAll } from './ssh-manager.js'
-import { AppConfig, SshConnectPayload } from './types.js'
+import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
+import { AppConfig, SshConnectPayload, SftpConnectPayload } from './types.js'
 
 /**
  * Регистрирует все IPC-обработчики приложения.
@@ -146,6 +146,121 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
     })
 
     ipcMain.on('ssh-close', (_, id: string) => cleanupConnection(id))
+
+    // SFTP Соединения
+    ipcMain.on('sftp-connect', (event: IpcMainEvent, payload: SftpConnectPayload) => {
+        const { id, config } = payload
+
+        cleanupConnection(id)
+
+        const sshClient = new Client()
+        sshClients.set(id, sshClient)
+
+        const socket = net.connect(config.port || 22, config.host)
+        sshSockets.set(id, socket)
+
+        socket.on('connect', () => {
+            const connectConfig: ConnectConfig = {
+                sock: socket,
+                username: config.user,
+                readyTimeout: 20000
+            }
+
+            if (config.authType === 'key' && config.privateKeyPath) {
+                try {
+                    connectConfig.privateKey = fs.readFileSync(config.privateKeyPath)
+                } catch (err) {
+                    event.reply(`sftp-error-${id}`, `Failed to read key: ${err}`)
+                    cleanupConnection(id)
+                    return
+                }
+            } else {
+                connectConfig.password = Buffer.from(config.password ?? '', 'base64').toString('utf8')
+            }
+
+            sshClient.connect(connectConfig)
+        })
+
+        socket.on('error', (err: Error) => {
+            event.reply(`sftp-error-${id}`, `Socket error: ${err.message}`)
+            cleanupConnection(id)
+        })
+
+        sshClient.on('ready', () => {
+            sshClient.sftp((err, sftp) => {
+                if (err) {
+                    event.reply(`sftp-error-${id}`, `SFTP error: ${err.message}`)
+                    return
+                }
+                sftpClients.set(id, sftp)
+                event.reply(`sftp-status-${id}`, 'SFTP session ready')
+            })
+        })
+
+        sshClient.on('error', (err: Error) => {
+            event.reply(`sftp-error-${id}`, err.message)
+            cleanupConnection(id)
+        })
+    })
+
+    ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
+        const { id, path } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP client not found')
+
+        return new Promise((resolve, reject) => {
+            sftp.readdir(path, (err, list) => {
+                if (err) reject(err)
+                else resolve(list)
+            })
+        })
+    })
+
+    ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }) => {
+        const { id, path, isDir } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP client not found')
+
+        return new Promise((resolve, reject) => {
+            if (isDir) {
+                sftp.rmdir(path, (err) => {
+                    if (err) reject(err)
+                    else resolve(true)
+                })
+            } else {
+                sftp.unlink(path, (err) => {
+                    if (err) reject(err)
+                    else resolve(true)
+                })
+            }
+        })
+    })
+
+    ipcMain.handle('sftp-mkdir', async (_, payload: { id: string; path: string }) => {
+        const { id, path } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP client not found')
+
+        return new Promise((resolve, reject) => {
+            sftp.mkdir(path, (err) => {
+                if (err) reject(err)
+                else resolve(true)
+            })
+        })
+    })
+
+    ipcMain.handle('sftp-rename', async (_, payload: { id: string; oldPath: string; newPath: string }) => {
+        const { id, oldPath, newPath } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP client not found')
+
+        return new Promise((resolve, reject) => {
+            sftp.rename(oldPath, newPath, (err) => {
+                if (err) reject(err)
+                else resolve(true)
+            })
+        })
+    })
 
     // Управление окном
     ipcMain.on('window-minimize', () => getMainWindow()?.minimize())

@@ -1,8 +1,9 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {TerminalComponent} from './components/Terminal';
+import {SFTPBrowser} from './components/SFTPBrowser';
 import {ConnectionForm} from './components/ConnectionForm';
 import {ContextMenu} from './components/ContextMenu';
-import {Edit2, Minus, Play, Plus, Server, Square, Trash2, X} from 'lucide-react';
+import {Edit2, Folder, Minus, Play, Plus, Server, Square, Trash2, X} from 'lucide-react';
 import './styles/light.css';
 import './styles/dark.css';
 import './styles/gruvbox-light.css';
@@ -39,7 +40,7 @@ interface AppConfig {
 
 interface Tab {
     id: string;
-    type: 'home' | 'ssh' | 'settings' | 'connection' | 'about';
+    type: 'home' | 'ssh' | 'settings' | 'connection' | 'about' | 'sftp';
     title: string;
     config?: SSHConfig;
 }
@@ -768,6 +769,13 @@ function App() {
                                         onOSInfo={(info) => tab.config && handleOSInfo(tab.config, info)}
                                     />
                                 )}
+                                {tab.type === 'sftp' && tab.config && (
+                                    <SFTPBrowser
+                                        id={tab.id}
+                                        config={tab.config}
+                                        visible={activeTabId === tab.id}
+                                    />
+                                )}
                                 {tab.type === 'connection' && (
                                     <ConnectionForm
                                         onConnect={handleFormConnect}
@@ -918,6 +926,17 @@ function App() {
                             label: 'Подключиться',
                             icon: <Play size={14}/>,
                             onClick: () => addTab('ssh', contextMenu.config.name, contextMenu.config)
+                        },
+                        {
+                            label: 'Открыть sFTP',
+                            icon: <Folder size={14}/>,
+                            onClick: () => {
+                                const name = contextMenu.config.name || `${contextMenu.config.user}@${contextMenu.config.host}`;
+                                addTab('sftp', `sFTP: ${name}`, {
+                                    ...contextMenu.config,
+                                    password: contextMenu.config.password // Already encoded
+                                });
+                            }
                         },
                         {
                             label: 'Редактировать',
