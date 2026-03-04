@@ -75,6 +75,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     }, [id]);
 
     useEffect(() => {
+        // Prevent default behavior for drag and drop on the entire window
+        const preventDefault = (e: DragEvent) => e.preventDefault();
+        window.addEventListener('dragover', preventDefault);
+        window.addEventListener('drop', preventDefault);
+
         const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, (msg: string) => {
             setStatus(msg);
             if (msg === 'SFTP-сессия готова' && !isConnectingRef.current) {
@@ -111,6 +116,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         ipcRenderer.send('sftp-connect', {id, config});
 
         return () => {
+            window.removeEventListener('dragover', preventDefault);
+            window.removeEventListener('drop', preventDefault);
             if (typeof unsubStatus === 'function') unsubStatus();
             if (typeof unsubError === 'function') unsubError();
             if (typeof unsubProgress === 'function') unsubProgress();
@@ -292,9 +299,17 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         setIsDragging(false);
 
         const droppedFiles = Array.from(e.dataTransfer.files);
+        console.log('[SFTP] Dropped files count:', droppedFiles.length);
         if (droppedFiles.length === 0) return;
 
-        const filePaths = droppedFiles.map(f => (f as any).path).filter(Boolean);
+        // Try getting path from electron-specific webUtils if available,
+        // fall back to f.path which works in some Electron configurations
+        const filePaths = droppedFiles.map(f => {
+            if (ipcRenderer.getPathForFile) return ipcRenderer.getPathForFile(f);
+            return (f as any).path;
+        }).filter(Boolean);
+
+        console.log('[SFTP] Resolved file paths:', filePaths);
         if (filePaths.length === 0) return;
 
         try {

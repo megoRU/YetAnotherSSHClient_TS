@@ -239,14 +239,19 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         const dir = path.dirname(remotePath)
         let cmd = ''
 
+        // Simple shell escaping for paths
+        const escapePath = (p: string) => `'` + p.replace(/'/g, `'\\''`) + `'`
+        const escapedPath = escapePath(remotePath)
+        const escapedDir = escapePath(dir)
+
         if (ext === '.zip') {
-            cmd = `unzip -o "${remotePath}" -d "${dir}"`
+            cmd = `unzip -o ${escapedPath} -d ${escapedDir}`
         } else if (ext === '.tar') {
-            cmd = `tar -xf "${remotePath}" -C "${dir}"`
+            cmd = `tar -xf ${escapedPath} -C ${escapedDir}`
         } else if (ext === '.gz' || ext === '.tgz') {
-            cmd = `tar -xzf "${remotePath}" -C "${dir}"`
+            cmd = `tar -xzf ${escapedPath} -C ${escapedDir}`
         } else if (ext === '.bz2') {
-            cmd = `tar -xjf "${remotePath}" -C "${dir}"`
+            cmd = `tar -xjf ${escapedPath} -C ${escapedDir}`
         } else {
             throw new Error('Неподдерживаемый формат архива')
         }
