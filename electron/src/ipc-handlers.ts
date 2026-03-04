@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell, app, type IpcMainEvent, BrowserWindow } from 'e
 import { Client, PseudoTtyOptions, type ConnectConfig } from 'ssh2'
 import * as net from 'node:net'
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { loadConfig, saveConfig } from './config.js'
 import { getSystemFonts } from './font-service.js'
 import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
@@ -282,6 +283,41 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
 
         const results = []
         for (const localPath of filePaths) {
+            const filename = path.basename(localPath)
+            const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
+
+            const result = await new Promise((resolve, reject) => {
+                sftp.fastPut(localPath, remotePath, {
+                    step: (total_transferred, chunk, total) => {
+                        const progress = Math.round((total_transferred / total) * 100)
+                        const win = getMainWindow()
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
+                    }
+                }, (err) => {
+                    if (err) reject(err)
+                    else resolve(remotePath)
+                })
+            })
+            results.push(result)
+        }
+        return results
+    })
+
+    ipcMain.handle('sftp-upload-files-from-paths', async (event, payload: { id: string; remoteDir: string; filePaths: string[] }) => {
+        const { id, remoteDir, filePaths } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP-клиент не найден')
+
+        const results = []
+        for (const localPath of filePaths) {
+            // Check if it's a file (sftp.fastPut only works for files)
+            try {
+                const stats = fs.statSync(localPath)
+                if (!stats.isFile()) continue
+            } catch (e) {
+                continue
+            }
+
             const filename = path.basename(localPath)
             const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
 

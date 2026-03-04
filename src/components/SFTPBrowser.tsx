@@ -34,6 +34,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
     const [progress, setProgress] = useState<Record<string, number>>({});
+    const [isDragging, setIsDragging] = useState(false);
     const isConnectingRef = useRef(false);
 
     const loadDirectory = useCallback(async (dirPath: string) => {
@@ -164,18 +165,62 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        const filePaths = files.map(f => (f as any).path).filter(Boolean);
+        if (filePaths.length === 0) return;
+
+        try {
+            const results = await ipcRenderer.invoke('sftp-upload-files-from-paths', {
+                id,
+                remoteDir: path,
+                filePaths
+            });
+            if (results && results.length > 0) {
+                loadDirectory(path);
+            }
+        } catch (err: any) {
+            alert(`Ошибка загрузки: ${err.message}`);
+        }
+    };
+
     const displayStyle = visible ? 'flex' : 'none';
 
     return (
-        <div className="sftp-container" style={{
-            display: displayStyle,
-            flexDirection: 'column',
-            height: '100%',
-            width: '100%',
-            background: 'var(--bg-color)',
-            color: 'var(--text-color)',
-            userSelect: 'none'
-        }}>
+        <div
+            className={`sftp-container ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+                display: displayStyle,
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+                background: 'var(--bg-color)',
+                color: 'var(--text-color)',
+                userSelect: 'none',
+                position: 'relative'
+            }}
+        >
             {/* Toolbar */}
             <div className="sftp-toolbar" style={{
                 padding: '10px',
@@ -347,6 +392,23 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             </div>
 
             <style>{`
+                .sftp-container.dragging::after {
+                    content: 'Перетащите файлы сюда для загрузки';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(200, 30, 81, 0.1);
+                    border: 2px dashed #c81e51;
+                    display: flex;
+                    alignItems: center;
+                    justifyContent: center;
+                    font-weight: bold;
+                    color: #c81e51;
+                    z-index: 100;
+                    pointer-events: none;
+                }
                 .sftp-row:hover {
                     background: rgba(0,0,0,0.05);
                 }
