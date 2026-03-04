@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from '
 import {TerminalComponent} from './components/Terminal';
 import {ConnectionForm} from './components/ConnectionForm';
 import {ContextMenu} from './components/ContextMenu';
-import {Edit2, Minus, Play, Plus, Search, Server, Square, Trash2, X} from 'lucide-react';
+import {Edit2, Minus, Play, Plus, Server, Square, Trash2, X} from 'lucide-react';
 import './styles/light.css';
 import './styles/dark.css';
 import './styles/gruvbox-light.css';
@@ -102,7 +102,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
         return {hasError: true, error};
     }
 
-    componentDidCatch(error: any, errorInfo: any) {
+    componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
         console.error('ErrorBoundary caught an error', error, errorInfo);
     }
 
@@ -194,10 +194,17 @@ function App() {
     }, [config]);
 
     const addTab = useCallback((type: Tab['type'], title: string, sshConfig?: SSHConfig) => {
+        if (type === 'home') {
+            const existingHomeTab = tabs.find(t => t.type === 'home');
+            if (existingHomeTab) {
+                setActiveTabId(existingHomeTab.id);
+                return;
+            }
+        }
         const newId = generateId();
         setTabs(prev => [...prev, {id: newId, type, title, config: sshConfig}]);
         setActiveTabId(newId);
-    }, [tabs]);
+    }, [tabs, setActiveTabId]);
 
     const handleFormConnect = useCallback((sshConfig: SSHConfig) => {
         if (isConnectingRef.current) return;
@@ -653,12 +660,16 @@ function App() {
                                  }}>
                                 {tab.type === 'home' && (
                                     <div style={{padding: '40px', textAlign: 'center', userSelect: 'none'}}>
-                                        <h2 style={{marginBottom: '30px', userSelect: 'none'}}>Сервера</h2>
+                                        <h2 style={{marginBottom: '30px', userSelect: 'none'}}>
+                                            {config.favorites.length === 1 ? 'Сервер' : 'Сервера'}
+                                        </h2>
                                         <div style={{
                                             display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fill, 180px)',
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 250px))',
                                             gap: '20px',
-                                            justifyContent: 'center'
+                                            justifyContent: 'center',
+                                            maxWidth: '1200px',
+                                            margin: '0 auto'
                                         }}>
                                             {config.favorites.map((fav, i) => (
                                                 <div
@@ -667,18 +678,18 @@ function App() {
                                                     onClick={() => addTab('ssh', fav.name, fav)}
                                                     onContextMenu={(e) => onContextMenu(e, fav)}
                                                     style={{
-                                                        width: '180px',
-                                                        height: '180px',
-                                                        padding: '15px',
+                                                        height: '200px',
+                                                        padding: '20px',
                                                         borderRadius: '15px',
                                                         cursor: 'pointer',
                                                         display: 'flex',
                                                         flexDirection: 'column',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        gap: '12px',
+                                                        gap: '15px',
                                                         boxSizing: 'border-box',
-                                                        transition: 'background-color 0.2s'
+                                                        transition: 'background-color 0.2s',
+                                                        border: '1px solid var(--border-color)'
                                                     }}
                                                 >
                                                     <div style={{
@@ -709,6 +720,40 @@ function App() {
                                                     </div>
                                                 </div>
                                             ))}
+                                            <div
+                                                className="server-list-item"
+                                                onClick={() => addTab('connection', 'Подключение')}
+                                                style={{
+                                                    height: '200px',
+                                                    padding: '20px',
+                                                    borderRadius: '15px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '15px',
+                                                    boxSizing: 'border-box',
+                                                    transition: 'background-color 0.2s',
+                                                    border: '1px dashed var(--border-color)',
+                                                    opacity: 0.8
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: '80px',
+                                                    height: '80px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    borderRadius: '50%',
+                                                    background: 'rgba(0,0,0,0.05)'
+                                                }}>
+                                                    <Plus size={48} style={{opacity: 0.5}}/>
+                                                </div>
+                                                <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>
+                                                    Добавить сервер
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -843,7 +888,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.7
+                                            Версия: 1.0.8
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();
