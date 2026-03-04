@@ -273,7 +273,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string }[] }) => {
+    ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string; isDir?: boolean }[] }) => {
         const { id, files } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) throw new Error('SFTP-клиент не найден')
@@ -286,21 +286,40 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         if (canceled || filePaths.length === 0) return null
         const destDir = filePaths[0]
 
+        const downloadRecursive = async (remote: string, local: string) => {
+            return new Promise((resolve, reject) => {
+                sftp.stat(remote, async (err, stats) => {
+                    if (err) return reject(err)
+                    if (stats.isDirectory()) {
+                        if (!fs.existsSync(local)) fs.mkdirSync(local)
+                        sftp.readdir(remote, async (err, list) => {
+                            if (err) return reject(err)
+                            for (const item of list) {
+                                if (item.filename === '.' || item.filename === '..') continue
+                                await downloadRecursive(`${remote}/${item.filename}`.replace(/\/+/g, '/'), path.join(local, item.filename))
+                            }
+                            resolve(local)
+                        })
+                    } else {
+                        sftp.fastGet(remote, local, {
+                            step: (transferred, chunk, total) => {
+                                const progress = Math.round((transferred / total) * 100)
+                                const win = getMainWindow()
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress })
+                            }
+                        }, (err) => {
+                            if (err) reject(err)
+                            else resolve(local)
+                        })
+                    }
+                })
+            })
+        }
+
         const results = []
         for (const file of files) {
             const localPath = path.join(destDir, file.filename)
-            const result = await new Promise((resolve, reject) => {
-                sftp.fastGet(file.remotePath, localPath, {
-                    step: (total_transferred, chunk, total) => {
-                        const progress = Math.round((total_transferred / total) * 100)
-                        const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: file.remotePath, progress })
-                    }
-                }, (err) => {
-                    if (err) reject(err)
-                    else resolve(localPath)
-                })
-            })
+            const result = await downloadRecursive(file.remotePath, localPath)
             results.push(result)
         }
         return results
@@ -398,46 +417,53 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         if (!sftp) throw new Error('SFTP-клиент не найден')
 
         const results = []
-        for (const localPath of filePaths) {
-            let fileSize = 0
-            try {
-                const stats = fs.statSync(localPath)
-                if (!stats.isFile()) continue
-                fileSize = stats.size
-            } catch (e) {
-                continue
-            }
 
+        const uploadRecursive = async (local: string, remote: string) => {
+            const stats = fs.statSync(local)
+            if (stats.isDirectory()) {
+                // Ensure directory exists on server
+                await new Promise((resolve) => {
+                    sftp.mkdir(remote, (err) => {
+                        // Ignore error if directory already exists
+                        resolve(true)
+                    })
+                })
+                const files = fs.readdirSync(local)
+                for (const file of files) {
+                    await uploadRecursive(path.join(local, file), `${remote}/${file}`.replace(/\/+/g, '/'))
+                }
+            } else {
+                let lastProgressTime = 0
+                await new Promise((resolve, reject) => {
+                    sftp.fastPut(local, remote, {
+                        step: (transferred, chunk, total) => {
+                            const now = Date.now()
+                            if (now - lastProgressTime > 100 || transferred === total) {
+                                lastProgressTime = now
+                                const progress = Math.round((transferred / total) * 100)
+                                const win = getMainWindow()
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total })
+                            }
+                        }
+                    }, (err) => {
+                        if (err) {
+                            const msg = err.message || String(err)
+                            if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
+                                return resolve({ remotePath: remote, cancelled: true })
+                            }
+                            reject(err)
+                        } else {
+                            resolve({ remotePath: remote, size: stats.size })
+                        }
+                    })
+                })
+            }
+        }
+
+        for (const localPath of filePaths) {
             const filename = path.basename(localPath)
             const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
-
-            const result = await new Promise((resolve, reject) => {
-                let lastProgressTime = 0
-
-                sftp.fastPut(localPath, remotePath, {
-                    step: (transferred, chunk, total) => {
-                        const now = Date.now()
-                        // Throttle progress updates to avoid saturating IPC
-                        if (now - lastProgressTime > 100 || transferred === total) {
-                            lastProgressTime = now
-                            const progress = Math.round((transferred / total) * 100)
-                            const win = getMainWindow()
-                            if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, transferred, total })
-                        }
-                    }
-                }, (err) => {
-                    if (err) {
-                        const msg = err.message || String(err)
-                        if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
-                            // User likely cancelled
-                            return resolve({ remotePath, cancelled: true })
-                        }
-                        reject(err)
-                    } else {
-                        resolve({ remotePath, size: fileSize })
-                    }
-                })
-            })
+            const result = await uploadRecursive(localPath, remotePath)
             results.push(result)
         }
         return results
