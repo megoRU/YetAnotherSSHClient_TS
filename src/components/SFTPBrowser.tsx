@@ -50,7 +50,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
 
     // Modal states
-    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error', file?: FileEntry, errorMessage?: string } | null>(null);
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload', file?: FileEntry, errorMessage?: string } | null>(null);
     const [modalInput, setModalInput] = useState('');
 
     const isConnectingRef = useRef(false);
@@ -85,7 +85,12 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setFiles(filteredList);
             setPath(dirPath);
         } catch (err: any) {
-            setError(err.message || String(err));
+            const msg = err.message || String(err);
+            if (msg.includes('No response from server') || msg.includes('Channel closed')) {
+                // Ignore errors during reconnection
+                return;
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -183,7 +188,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
             }
         } catch (err: any) {
-            showError(`Ошибка загрузки: ${err.message}`);
+            const msg = err.message || String(err);
+            if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
+                return;
+            }
+            showError(`Ошибка загрузки: ${msg}`);
         }
     };
 
@@ -358,25 +367,29 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 loadDirectory(path);
             }
         } catch (err: any) {
-            showError(`Ошибка загрузки: ${err.message}`);
+            const msg = err.message || String(err);
+            if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
+                return;
+            }
+            showError(`Ошибка загрузки: ${msg}`);
             // Cleanup failed uploads
             setActiveUploads(prev => prev.filter(u => !newUploads.find(nu => nu.remotePath === u.remotePath)));
         }
     };
 
     const handleCancelUpload = () => {
-        if (!confirm('Вы уверены, что хотите отменить все текущие загрузки? Это приведет к переподключению.')) return;
         ipcRenderer.send('sftp-cancel-upload', id);
         setActiveUploads([]);
         setProgress({});
         isConnectingRef.current = false;
         setStatus('Подключение...');
+        setModal(null);
         // The connection will be re-established by the sftp-connect call in useEffect
         // because we destroyed it in the backend.
         // Wait a bit and trigger a reconnect.
         setTimeout(() => {
             ipcRenderer.send('sftp-connect', {id, config});
-        }, 500);
+        }, 1000);
     };
 
     const displayStyle = visible ? 'flex' : 'none';
@@ -560,7 +573,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                             <span style={{ fontSize: '10px', color: primaryRed }}>{upload.progress}%</span>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }}
+                                                onClick={(e) => { e.stopPropagation(); setModal({ type: 'cancelUpload' }); }}
                                                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', alignItems: 'center' }}
                                                 title="Отменить загрузку"
                                             >
@@ -728,12 +741,13 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         border: '1px solid var(--border-color)'
                     }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                            {modal.type === 'error' ? <AlertTriangle color="#cc241d" size={24} /> : null}
+                            {modal.type === 'error' || modal.type === 'cancelUpload' ? <AlertTriangle color="#cc241d" size={24} /> : null}
                             <h3 style={{ marginTop: 0, marginBottom: 0 }}>
                                 {modal.type === 'delete' && 'Удаление'}
                                 {modal.type === 'rename' && 'Переименование'}
                                 {modal.type === 'permissions' && 'Права доступа'}
                                 {modal.type === 'error' && 'Ошибка'}
+                                {modal.type === 'cancelUpload' && 'Отмена загрузки'}
                             </h3>
                         </div>
 
@@ -743,6 +757,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
                         {modal.type === 'error' && (
                             <p style={{ color: '#cc241d' }}>{modal.errorMessage}</p>
+                        )}
+
+                        {modal.type === 'cancelUpload' && (
+                            <p>Вы уверены, что хотите отменить все текущие загрузки? Это приведет к временному разрыву соединения.</p>
                         )}
 
                         {(modal.type === 'rename' || modal.type === 'permissions') && (
@@ -772,9 +790,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     else if (modal.type === 'rename') handleRename();
                                     else if (modal.type === 'permissions') handlePermissions();
                                     else if (modal.type === 'error') setModal(null);
+                                    else if (modal.type === 'cancelUpload') handleCancelUpload();
                                 }}
                             >
-                                {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : 'Сохранить'}
+                                {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : modal.type === 'cancelUpload' ? 'Да, отменить' : 'Сохранить'}
                             </button>
                         </div>
                     </div>
