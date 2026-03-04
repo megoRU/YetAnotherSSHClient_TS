@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 
 interface ContextMenuOption {
     label: string;
@@ -16,6 +16,7 @@ interface ContextMenuProps {
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({x, y, options, onClose}) => {
     const menuRef = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState({left: x, top: y, ready: false});
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -27,9 +28,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({x, y, options, onClose}
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [onClose]);
 
-    // Adjust position if menu goes off screen
-    const adjustPosition = () => {
-        if (!menuRef.current) return {left: x, top: y};
+    useLayoutEffect(() => {
+        if (!menuRef.current) return;
+
         const {innerWidth, innerHeight} = window;
         const {offsetWidth, offsetHeight} = menuRef.current;
 
@@ -43,10 +44,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({x, y, options, onClose}
             top = innerHeight - offsetHeight - 5;
         }
 
-        return {left, top};
-    };
+        // Ensure not negative
+        left = Math.max(5, left);
+        top = Math.max(5, top);
 
-    const pos = adjustPosition();
+        setPos({left, top, ready: true});
+    }, [x, y]);
 
     return (
         <div
@@ -62,6 +65,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({x, y, options, onClose}
                 zIndex: 1000,
                 minWidth: '160px',
                 padding: '5px 0',
+                opacity: pos.ready ? 1 : 0,
+                pointerEvents: pos.ready ? 'auto' : 'none'
             }}
         >
             {options.map((option, index) => (

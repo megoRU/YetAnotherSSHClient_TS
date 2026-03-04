@@ -230,6 +230,42 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
+    ipcMain.handle('sftp-extract', async (_, payload: { id: string; remotePath: string }) => {
+        const { id, remotePath } = payload
+        const client = sshClients.get(id)
+        if (!client) throw new Error('SSH-клиент не найден')
+
+        const ext = path.extname(remotePath).toLowerCase()
+        const dir = path.dirname(remotePath)
+        let cmd = ''
+
+        if (ext === '.zip') {
+            cmd = `unzip -o "${remotePath}" -d "${dir}"`
+        } else if (ext === '.tar') {
+            cmd = `tar -xf "${remotePath}" -C "${dir}"`
+        } else if (ext === '.gz' || ext === '.tgz') {
+            cmd = `tar -xzf "${remotePath}" -C "${dir}"`
+        } else if (ext === '.bz2') {
+            cmd = `tar -xjf "${remotePath}" -C "${dir}"`
+        } else {
+            throw new Error('Неподдерживаемый формат архива')
+        }
+
+        return new Promise((resolve, reject) => {
+            client.exec(cmd, (err, stream) => {
+                if (err) return reject(err)
+                let errorOutput = ''
+                stream.stderr.on('data', (data: Buffer) => {
+                    errorOutput += data.toString()
+                })
+                stream.on('close', (code: number) => {
+                    if (code === 0) resolve(true)
+                    else reject(new Error(errorOutput || `Ошибка распаковки (код ${code})`))
+                })
+            })
+        })
+    })
+
     ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string }[] }) => {
         const { id, files } = payload
         const sftp = sftpClients.get(id)

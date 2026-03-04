@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
@@ -220,6 +220,20 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
+    const handleExtract = async (filename: string) => {
+        const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
+        setLoading(true);
+        setStatus('Распаковка...');
+        try {
+            await ipcRenderer.invoke('sftp-extract', {id, remotePath});
+            loadDirectory(path);
+        } catch (err: any) {
+            alert(`Ошибка распаковки: ${err.message}`);
+            setLoading(false);
+            setStatus('SFTP-сессия готова');
+        }
+    };
+
     const handleFileClick = (e: React.MouseEvent, filename: string, index: number) => {
         if (e.shiftKey && lastSelectedIndex !== -1) {
             const start = Math.min(lastSelectedIndex, index);
@@ -242,6 +256,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         e.stopPropagation();
         if (!selectedFilenames.includes(file.filename)) {
             setSelectedFilenames([file.filename]);
+            setLastSelectedIndex(files.findIndex(f => f.filename === file.filename));
         }
         setContextMenu({
             x: e.clientX,
@@ -447,7 +462,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     }}
                                     onDoubleClick={(e) => {
                                         e.stopPropagation();
-                                        handleNavigate(file.filename, isDir);
+                                        if (isDir) {
+                                            handleNavigate(file.filename, isDir);
+                                        } else {
+                                            handleEdit(file.filename);
+                                        }
                                     }}
                                     onContextMenu={(e) => onFileContextMenu(e, file)}
                                     style={{cursor: 'pointer', position: 'relative'}}
@@ -537,7 +556,14 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                             onClick: () => {
                                 setModal({ type: 'delete', file: contextMenu.file });
                             }
-                        }
+                        },
+                        ...(contextMenu.file && !((contextMenu.file.attrs.mode & 0o040000) !== 0) && ['.zip', '.tar', '.gz', '.tgz', '.bz2'].some(ext => contextMenu.file!.filename.toLowerCase().endsWith(ext)) ? [{
+                            label: 'Распаковать',
+                            icon: <Archive size={14} />,
+                            onClick: () => {
+                                handleExtract(contextMenu.file!.filename);
+                            }
+                        }] : [])
                     ]}
                 />
             )}
