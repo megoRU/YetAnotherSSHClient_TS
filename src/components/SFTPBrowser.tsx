@@ -34,6 +34,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [theme, setTheme] = useState(document.body.className);
     const [path, setPath] = useState('');
     const [files, setFiles] = useState<FileEntry[]>([]);
+    const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
@@ -68,6 +69,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     };
 
     const loadDirectory = useCallback(async (dirPath: string) => {
+        if (status !== 'SFTP-сессия готова') return;
         setLoading(true);
         setError(null);
         setSelectedFilenames([]);
@@ -86,7 +88,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setPath(dirPath);
         } catch (err: any) {
             const msg = err.message || String(err);
-            if (msg.includes('No response from server') || msg.includes('Channel closed')) {
+            if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('not found')) {
                 // Ignore errors during reconnection
                 return;
             }
@@ -94,7 +96,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, status]);
 
     useEffect(() => {
         const observer = new MutationObserver(() => setTheme(document.body.className));
@@ -108,10 +110,23 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         window.addEventListener('dragover', preventDefault);
         window.addEventListener('drop', preventDefault);
 
-        const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, (msg: string) => {
+        const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, async (msg: string) => {
             setStatus(msg);
             if (msg === 'SFTP-сессия готова' && !isConnectingRef.current) {
                 isConnectingRef.current = true;
+
+                // Cleanup partial files from previous cancelled uploads
+                if (pendingDeletes.length > 0) {
+                    for (const p of pendingDeletes) {
+                        try {
+                            await ipcRenderer.invoke('sftp-rm', { id, path: p, isDir: false });
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+                    setPendingDeletes([]);
+                }
+
                 ipcRenderer.invoke('sftp-realpath', {id, path: '.'}).then((resolvedPath: string) => {
                     loadDirectory(resolvedPath);
                 }).catch(() => {
@@ -379,6 +394,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
     const handleCancelUpload = async () => {
         try {
+            // Save paths for later cleanup
+            const pathsToCleanup = activeUploads.map(u => u.remotePath);
+            setPendingDeletes(prev => [...prev, ...pathsToCleanup]);
+
             ipcRenderer.invoke('sftp-cancel-upload', { id });
             setActiveUploads([]);
             setProgress({});
