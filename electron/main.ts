@@ -13,8 +13,14 @@ import { registerIpcHandlers } from './src/ipc-handlers.js'
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-background-timer-throttling')
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
-app.commandLine.appendSwitch('ignore-gpu-blacklist')
-app.commandLine.appendSwitch('enable-gpu-rasterization')
+
+if (process.platform === 'darwin' && process.arch === 'x64') {
+    app.commandLine.appendSwitch('disable-webgl')
+} else {
+    app.commandLine.appendSwitch('ignore-gpu-blacklist')
+    app.commandLine.appendSwitch('enable-gpu-rasterization')
+}
+
 app.commandLine.appendSwitch('enable-zero-copy')
 
 /* ================= ERRORS ================= */

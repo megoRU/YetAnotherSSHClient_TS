@@ -185,11 +185,16 @@ export const TerminalComponent: React.FC<Props> = ({
         term.loadAddon(clipboardAddon);
         term.open(termRef.current);
 
-        try {
-            const webglAddon = new WebglAddon();
-            term.loadAddon(webglAddon);
-        } catch (e) {
-            console.warn('WebGL addon could not be loaded, falling back to standard renderer', e);
+        const isMacX86 = ipcRenderer.platform === 'darwin' && ipcRenderer.arch === 'x64';
+        if (!isMacX86) {
+            try {
+                const webglAddon = new WebglAddon();
+                term.loadAddon(webglAddon);
+            } catch (e) {
+                console.warn('WebGL addon could not be loaded, falling back to standard renderer', e);
+            }
+        } else {
+            console.log('WebGL disabled for macOS x86');
         }
 
         xtermRef.current = term;
