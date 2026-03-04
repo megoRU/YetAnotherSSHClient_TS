@@ -8,6 +8,8 @@ import { getSystemFonts } from './font-service.js'
 import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
 import { AppConfig, SshConnectPayload, SftpConnectPayload } from './types.js'
 
+const activeSftpStreams = new Map<string, { stream: fs.ReadStream | any, remotePath: string, id: string }>()
+
 /**
  * Регистрирует все IPC-обработчики приложения.
  *
@@ -304,13 +306,6 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
-    ipcMain.on('sftp-cancel-upload', (_, id: string) => {
-        // Since ssh2 fastPut doesn't support easy cancellation,
-        // we destroy the whole client to stop any ongoing work for this tab.
-        // The frontend will handle reconnection if needed.
-        cleanupConnection(id)
-    })
-
     ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }) => {
         const { id, path, mode } = payload
         const sftp = sftpClients.get(id)
@@ -405,7 +400,6 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         const results = []
         for (const localPath of filePaths) {
             let fileSize = 0
-            // Check if it's a file (sftp.fastPut only works for files)
             try {
                 const stats = fs.statSync(localPath)
                 if (!stats.isFile()) continue
@@ -418,20 +412,63 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
             const remotePath = `${remoteDir}/${filename}`.replace(/\/+/g, '/')
 
             const result = await new Promise((resolve, reject) => {
-                sftp.fastPut(localPath, remotePath, {
-                    step: (total_transferred, chunk, total) => {
-                        const progress = Math.round((total_transferred / total) * 100)
-                        const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, transferred: total_transferred, total })
-                    }
-                }, (err) => {
-                    if (err) reject(err)
-                    else resolve({ remotePath, size: fileSize })
+                // Use custom stream for abortability
+                const readStream = fs.createReadStream(localPath)
+                const writeStream = sftp.createWriteStream(remotePath)
+
+                const streamKey = `${id}:${remotePath}`
+                activeSftpStreams.set(streamKey, { stream: readStream, remotePath, id })
+
+                let transferred = 0
+                readStream.on('data', (chunk) => {
+                    transferred += chunk.length
+                    const progress = Math.round((transferred / fileSize) * 100)
+                    const win = getMainWindow()
+                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, transferred, total: fileSize })
                 })
+
+                writeStream.on('close', () => {
+                    activeSftpStreams.delete(streamKey)
+                    resolve({ remotePath, size: fileSize })
+                })
+
+                writeStream.on('error', (err) => {
+                    activeSftpStreams.delete(streamKey)
+                    readStream.destroy()
+                    reject(err)
+                })
+
+                readStream.on('error', (err) => {
+                    activeSftpStreams.delete(streamKey)
+                    writeStream.destroy()
+                    reject(err)
+                })
+
+                readStream.pipe(writeStream)
             })
             results.push(result)
         }
         return results
+    })
+
+    ipcMain.handle('sftp-cancel-upload', async (_, payload: { id: string; remotePath: string }) => {
+        const { id, remotePath } = payload
+        const streamKey = `${id}:${remotePath}`
+        const active = activeSftpStreams.get(streamKey)
+
+        if (active) {
+            active.stream.destroy()
+            activeSftpStreams.delete(streamKey)
+
+            // Try to delete the partial file
+            const sftp = sftpClients.get(id)
+            if (sftp) {
+                return new Promise((resolve) => {
+                    sftp.unlink(remotePath, () => resolve(true))
+                })
+            }
+        }
+        return true
     })
 
     ipcMain.handle('sftp-open-in-editor', async (event, payload: { id: string; remotePath: string; filename: string }) => {

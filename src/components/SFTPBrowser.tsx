@@ -50,7 +50,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
 
     // Modal states
-    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload', file?: FileEntry, errorMessage?: string } | null>(null);
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload', file?: FileEntry, errorMessage?: string, cancelPath?: string } | null>(null);
     const [modalInput, setModalInput] = useState('');
 
     const isConnectingRef = useRef(false);
@@ -377,19 +377,19 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
-    const handleCancelUpload = () => {
-        ipcRenderer.send('sftp-cancel-upload', id);
-        setActiveUploads([]);
-        setProgress({});
-        isConnectingRef.current = false;
-        setStatus('Подключение...');
-        setModal(null);
-        // The connection will be re-established by the sftp-connect call in useEffect
-        // because we destroyed it in the backend.
-        // Wait a bit and trigger a reconnect.
-        setTimeout(() => {
-            ipcRenderer.send('sftp-connect', {id, config});
-        }, 1000);
+    const handleCancelUpload = async (remotePath: string) => {
+        try {
+            await ipcRenderer.invoke('sftp-cancel-upload', { id, remotePath });
+            setActiveUploads(prev => prev.filter(u => u.remotePath !== remotePath));
+            setProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[remotePath];
+                return newProgress;
+            });
+            setModal(null);
+        } catch (err: any) {
+            showError(`Ошибка отмены: ${err.message}`);
+        }
     };
 
     const displayStyle = visible ? 'flex' : 'none';
@@ -573,7 +573,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                             <span style={{ fontSize: '10px', color: primaryRed }}>{upload.progress}%</span>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); setModal({ type: 'cancelUpload' }); }}
+                                                onClick={(e) => { e.stopPropagation(); setModal({ type: 'cancelUpload', cancelPath: upload.remotePath }); }}
                                                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', alignItems: 'center' }}
                                                 title="Отменить загрузку"
                                             >
@@ -760,7 +760,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         )}
 
                         {modal.type === 'cancelUpload' && (
-                            <p>Вы уверены, что хотите отменить все текущие загрузки? Это приведет к временному разрыву соединения.</p>
+                            <p>Вы уверены, что хотите отменить загрузку этого файла? Частично загруженный файл будет удален с сервера.</p>
                         )}
 
                         {(modal.type === 'rename' || modal.type === 'permissions') && (
@@ -790,7 +790,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     else if (modal.type === 'rename') handleRename();
                                     else if (modal.type === 'permissions') handlePermissions();
                                     else if (modal.type === 'error') setModal(null);
-                                    else if (modal.type === 'cancelUpload') handleCancelUpload();
+                                    else if (modal.type === 'cancelUpload' && modal.cancelPath) handleCancelUpload(modal.cancelPath);
                                 }}
                             >
                                 {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : modal.type === 'cancelUpload' ? 'Да, отменить' : 'Сохранить'}
