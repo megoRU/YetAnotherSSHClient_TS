@@ -34,7 +34,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [theme, setTheme] = useState(document.body.className);
     const [path, setPath] = useState('');
     const [files, setFiles] = useState<FileEntry[]>([]);
-    const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
@@ -42,6 +41,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number, size?: number }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const dragCounter = useRef(0);
+    const pendingDeletesRef = useRef<string[]>([]);
 
     // Selection state
     const [selectedFilenames, setSelectedFilenames] = useState<string[]>([]);
@@ -69,7 +69,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     };
 
     const loadDirectory = useCallback(async (dirPath: string) => {
-        if (status !== 'SFTP-сессия готова') return;
         setLoading(true);
         setError(null);
         setSelectedFilenames([]);
@@ -116,15 +115,16 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 isConnectingRef.current = true;
 
                 // Cleanup partial files from previous cancelled uploads
-                if (pendingDeletes.length > 0) {
-                    for (const p of pendingDeletes) {
+                if (pendingDeletesRef.current.length > 0) {
+                    const toDelete = [...pendingDeletesRef.current];
+                    pendingDeletesRef.current = [];
+                    for (const p of toDelete) {
                         try {
                             await ipcRenderer.invoke('sftp-rm', { id, path: p, isDir: false });
                         } catch (e) {
                             // ignore
                         }
                     }
-                    setPendingDeletes([]);
                 }
 
                 ipcRenderer.invoke('sftp-realpath', {id, path: '.'}).then((resolvedPath: string) => {
@@ -138,6 +138,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const unsubError = ipcRenderer.on(`sftp-error-${id}`, (msg: string) => {
             setError(msg);
             setLoading(false);
+            isConnectingRef.current = false;
         });
 
         const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: Progress) => {
@@ -396,7 +397,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         try {
             // Save paths for later cleanup
             const pathsToCleanup = activeUploads.map(u => u.remotePath);
-            setPendingDeletes(prev => [...prev, ...pathsToCleanup]);
+            pendingDeletesRef.current = [...pendingDeletesRef.current, ...pathsToCleanup];
 
             ipcRenderer.invoke('sftp-cancel-upload', { id });
             setActiveUploads([]);
