@@ -397,10 +397,12 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
 
         const results = []
         for (const localPath of filePaths) {
+            let fileSize = 0
             // Check if it's a file (sftp.fastPut only works for files)
             try {
                 const stats = fs.statSync(localPath)
                 if (!stats.isFile()) continue
+                fileSize = stats.size
             } catch (e) {
                 continue
             }
@@ -413,11 +415,11 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                     step: (total_transferred, chunk, total) => {
                         const progress = Math.round((total_transferred / total) * 100)
                         const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, transferred: total_transferred, total })
                     }
                 }, (err) => {
                     if (err) reject(err)
-                    else resolve(remotePath)
+                    else resolve({ remotePath, size: fileSize })
                 })
             })
             results.push(result)

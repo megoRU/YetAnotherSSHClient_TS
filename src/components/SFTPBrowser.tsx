@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
-import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud} from 'lucide-react';
+import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
 const {ipcRenderer} = window as any;
@@ -20,6 +20,8 @@ interface FileEntry {
 interface Progress {
     remotePath: string;
     progress: number;
+    transferred?: number;
+    total?: number;
 }
 
 interface Props {
@@ -35,7 +37,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
     const [progress, setProgress] = useState<Record<string, number>>({});
-    const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number }[]>([]);
+    const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number, size?: number }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const dragCounter = useRef(0);
 
@@ -47,10 +49,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
 
     // Modal states
-    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions', file?: FileEntry } | null>(null);
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error', file?: FileEntry, errorMessage?: string } | null>(null);
     const [modalInput, setModalInput] = useState('');
 
     const isConnectingRef = useRef(false);
+
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const showError = (msg: string) => {
+        setModal({ type: 'error', errorMessage: msg });
+    };
 
     const loadDirectory = useCallback(async (dirPath: string) => {
         setLoading(true);
@@ -105,7 +119,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 [data.remotePath]: data.progress
             }));
             setActiveUploads(prev => prev.map(u =>
-                u.remotePath === data.remotePath ? { ...u, progress: data.progress } : u
+                u.remotePath === data.remotePath ? { ...u, progress: data.progress, size: data.total } : u
             ));
 
             if (data.progress >= 100) {
@@ -162,22 +176,18 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
             }
         } catch (err: any) {
-            alert(`Ошибка загрузки: ${err.message}`);
+            showError(`Ошибка загрузки: ${err.message}`);
         }
     };
 
     const handleUpload = async () => {
         try {
-            // This one uses a dialog, so we don't know the filenames beforehand
-            // We'll rely on the progress event to populate activeUploads if we want to show them
-            // but for better UX, the backend could return filenames before starting if we changed it.
-            // For now, let's just refresh after completion.
             const results = await ipcRenderer.invoke('sftp-upload-file', {id, remoteDir: path});
             if (results && results.length > 0) {
                 loadDirectory(path);
             }
         } catch (err: any) {
-            alert(`Ошибка загрузки: ${err.message}`);
+            showError(`Ошибка загрузки: ${err.message}`);
         }
     };
 
@@ -186,7 +196,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         try {
             await ipcRenderer.invoke('sftp-open-in-editor', {id, remotePath, filename});
         } catch (err: any) {
-            alert(`Ошибка открытия: ${err.message}`);
+            showError(`Ошибка открытия: ${err.message}`);
         }
     };
 
@@ -206,7 +216,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setModal(null);
             loadDirectory(path);
         } catch (err: any) {
-            alert(`Ошибка удаления: ${err.message}`);
+            showError(`Ошибка удаления: ${err.message}`);
             setLoading(false);
         }
     };
@@ -220,7 +230,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setModal(null);
             loadDirectory(path);
         } catch (err: any) {
-            alert(`Ошибка переименования: ${err.message}`);
+            showError(`Ошибка переименования: ${err.message}`);
         }
     };
 
@@ -234,7 +244,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setModal(null);
             loadDirectory(path);
         } catch (err: any) {
-            alert(`Ошибка изменения прав: ${err.message}`);
+            showError(`Ошибка изменения прав: ${err.message}`);
         }
     };
 
@@ -246,7 +256,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             await ipcRenderer.invoke('sftp-extract', {id, remotePath});
             loadDirectory(path);
         } catch (err: any) {
-            alert(`Ошибка распаковки: ${err.message}`);
+            showError(`Ошибка распаковки: ${err.message}`);
             setLoading(false);
             setStatus('SFTP-сессия готова');
         }
@@ -326,7 +336,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const newUploads = droppedFiles.map(f => ({
             filename: f.name,
             remotePath: `${path}/${f.name}`.replace(/\/+/g, '/'),
-            progress: 0
+            progress: 0,
+            size: f.size
         }));
         setActiveUploads(prev => [...prev, ...newUploads]);
 
@@ -340,18 +351,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 loadDirectory(path);
             }
         } catch (err: any) {
-            alert(`Ошибка загрузки: ${err.message}`);
+            showError(`Ошибка загрузки: ${err.message}`);
             // Cleanup failed uploads
             setActiveUploads(prev => prev.filter(u => !newUploads.find(nu => nu.remotePath === u.remotePath)));
         }
-    };
-
-    const formatSize = (bytes: number) => {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     const displayStyle = visible ? 'flex' : 'none';
@@ -478,7 +481,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
             {/* Content */}
             <div className="sftp-content" style={{flex: 1, overflowY: 'auto', position: 'relative'}}>
-                {(loading || status !== 'SFTP-сессия готова') && files.length === 0 && (
+                {(loading || status !== 'SFTP-сессия готова') && files.length === 0 && activeUploads.length === 0 && (
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -501,12 +504,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 {error && (
                     <div style={{padding: '20px', color: '#cc241d', background: 'rgba(204, 36, 29, 0.1)', margin: '10px', borderRadius: '4px'}}>
                         <strong>Ошибка:</strong> {error}
-                    </div>
-                )}
-
-                {!loading && files.length === 0 && !error && (
-                    <div style={{padding: '40px', textAlign: 'center', opacity: 0.5}}>
-                        Папка пуста
                     </div>
                 )}
 
@@ -533,16 +530,19 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     <File size={18} color="#c81e51" className="spin" />
                                 </td>
                                 <td style={{ padding: '8px 10px', fontStyle: 'italic' }}>
-                                    {upload.filename}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span>{upload.filename}</span>
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '10px', color: '#c81e51' }}>{upload.progress}%</span>
+                                            {/* Note: Cancellation not implemented on backend for fastPut, so X is just a visual placeholder for now or we could omit it */}
+                                        </div>
+                                    </div>
                                     <div style={{ width: '100%', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '4px' }}>
                                         <div style={{ width: `${upload.progress}%`, height: '100%', background: '#c81e51', transition: 'width 0.2s' }} />
                                     </div>
-                                    <div style={{ fontSize: '10px', color: '#c81e51', marginTop: '2px' }}>
-                                        Загрузка: {upload.progress}%
-                                    </div>
                                 </td>
-                                <td style={{ padding: '8px 10px', opacity: 0.7 }}>--</td>
-                                <td style={{ padding: '8px 10px', opacity: 0.7, fontSize: '12px' }}>Сейчас</td>
+                                <td style={{ padding: '8px 10px', opacity: 0.7 }}>{upload.size ? formatSize(upload.size) : '--'}</td>
+                                <td style={{ padding: '8px 10px', opacity: 0.7, fontSize: '12px' }}>Загрузка...</td>
                             </tr>
                         ))}
                         {files.map((file, index) => {
@@ -595,6 +595,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         })}
                     </tbody>
                 </table>
+                {!loading && files.length === 0 && !error && activeUploads.length === 0 && (
+                    <div style={{padding: '40px', textAlign: 'center', opacity: 0.5}}>
+                        Папка пуста
+                    </div>
+                )}
             </div>
 
             {contextMenu && (
@@ -689,14 +694,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
                         border: '1px solid var(--border-color)'
                     }} onClick={e => e.stopPropagation()}>
-                        <h3 style={{ marginTop: 0 }}>
-                            {modal.type === 'delete' && 'Удаление'}
-                            {modal.type === 'rename' && 'Переименование'}
-                            {modal.type === 'permissions' && 'Права доступа'}
-                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                            {modal.type === 'error' ? <AlertTriangle color="#cc241d" size={24} /> : null}
+                            <h3 style={{ marginTop: 0, marginBottom: 0 }}>
+                                {modal.type === 'delete' && 'Удаление'}
+                                {modal.type === 'rename' && 'Переименование'}
+                                {modal.type === 'permissions' && 'Права доступа'}
+                                {modal.type === 'error' && 'Ошибка'}
+                            </h3>
+                        </div>
 
                         {modal.type === 'delete' && (
                             <p>Вы уверены, что хотите удалить <b>{selectedFilenames.length > 1 ? `${selectedFilenames.length} элементов` : modal.file?.filename}</b>?</p>
+                        )}
+
+                        {modal.type === 'error' && (
+                            <p style={{ color: '#cc241d' }}>{modal.errorMessage}</p>
                         )}
 
                         {(modal.type === 'rename' || modal.type === 'permissions') && (
@@ -718,16 +731,17 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         )}
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button className="btn-secondary" onClick={() => setModal(null)}>Отмена</button>
+                            {modal.type !== 'error' && <button className="btn-secondary" onClick={() => setModal(null)}>Отмена</button>}
                             <button
-                                className={modal.type === 'delete' ? 'btn-primary' : 'btn-primary'}
+                                className="btn-primary"
                                 onClick={() => {
                                     if (modal.type === 'delete') handleDelete();
                                     else if (modal.type === 'rename') handleRename();
                                     else if (modal.type === 'permissions') handlePermissions();
+                                    else if (modal.type === 'error') setModal(null);
                                 }}
                             >
-                                {modal.type === 'delete' ? 'Удалить' : 'Сохранить'}
+                                {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : 'Сохранить'}
                             </button>
                         </div>
                     </div>
