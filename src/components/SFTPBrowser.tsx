@@ -53,14 +53,14 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     }, [id]);
 
     useEffect(() => {
-        const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, (_: any, msg: string) => {
+        const unsubStatus = ipcRenderer.on(`sftp-status-${id}`, (msg: string) => {
             setStatus(msg);
-            if (msg === 'SFTP session ready') {
+            if (msg === 'SFTP-сессия готова') {
                 loadDirectory('/');
             }
         });
 
-        const unsubError = ipcRenderer.on(`sftp-error-${id}`, (_: any, msg: string) => {
+        const unsubError = ipcRenderer.on(`sftp-error-${id}`, (msg: string) => {
             setError(msg);
             setLoading(false);
         });
@@ -96,11 +96,12 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    if (!visible && status !== 'SFTP session ready') return null;
+    // Don't unmount during connection, just hide
+    const displayStyle = visible ? 'flex' : 'none';
 
     return (
         <div className="sftp-container" style={{
-            display: 'flex',
+            display: displayStyle,
             flexDirection: 'column',
             height: '100%',
             width: '100%',
@@ -160,7 +161,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
             {/* Content */}
             <div className="sftp-content" style={{flex: 1, overflowY: 'auto', position: 'relative'}}>
-                {loading && files.length === 0 && (
+                {(loading || status !== 'SFTP-сессия готова') && files.length === 0 && (
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -171,10 +172,11 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '15px'
+                        gap: '15px',
+                        zIndex: 5
                     }}>
                         <div className="loading-spinner" />
-                        <div>{status}</div>
+                        <div style={{ fontWeight: 'bold' }}>{status}</div>
                     </div>
                 )}
 

@@ -160,17 +160,20 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         sshSockets.set(id, socket)
 
         socket.on('connect', () => {
+            socket.setNoDelay(true)
             const connectConfig: ConnectConfig = {
                 sock: socket,
                 username: config.user,
-                readyTimeout: 20000
+                readyTimeout: 20000,
+                keepaliveInterval: 10000,
+                keepaliveCountMax: 3
             }
 
             if (config.authType === 'key' && config.privateKeyPath) {
                 try {
                     connectConfig.privateKey = fs.readFileSync(config.privateKeyPath)
                 } catch (err) {
-                    event.reply(`sftp-error-${id}`, `Failed to read key: ${err}`)
+                    event.reply(`sftp-error-${id}`, `Ошибка чтения ключа: ${err}`)
                     cleanupConnection(id)
                     return
                 }
@@ -182,23 +185,33 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
 
         socket.on('error', (err: Error) => {
-            event.reply(`sftp-error-${id}`, `Socket error: ${err.message}`)
+            event.reply(`sftp-error-${id}`, `Ошибка сокета: ${err.message}`)
             cleanupConnection(id)
         })
 
         sshClient.on('ready', () => {
             sshClient.sftp((err, sftp) => {
                 if (err) {
-                    event.reply(`sftp-error-${id}`, `SFTP error: ${err.message}`)
+                    event.reply(`sftp-error-${id}`, `Ошибка SFTP: ${err.message}`)
                     return
                 }
                 sftpClients.set(id, sftp)
-                event.reply(`sftp-status-${id}`, 'SFTP session ready')
+                event.reply(`sftp-status-${id}`, 'SFTP-сессия готова')
             })
         })
 
         sshClient.on('error', (err: Error) => {
             event.reply(`sftp-error-${id}`, err.message)
+            cleanupConnection(id)
+        })
+
+        sshClient.on('end', () => {
+            event.reply(`sftp-status-${id}`, 'SFTP-соединение завершено')
+            cleanupConnection(id)
+        })
+
+        sshClient.on('close', () => {
+            event.reply(`sftp-status-${id}`, 'SFTP-соединение закрыто')
             cleanupConnection(id)
         })
     })
