@@ -22,6 +22,18 @@ interface Progress {
     progress: number;
     transferred?: number;
     total?: number;
+    type: 'upload' | 'download';
+}
+
+interface Transfer {
+    id: string;
+    filename: string;
+    remotePath: string;
+    progress: number;
+    size?: number;
+    type: 'upload' | 'download';
+    status: 'active' | 'success' | 'error' | 'cancelled';
+    error?: string;
 }
 
 interface Props {
@@ -37,8 +49,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
-    const [progress, setProgress] = useState<Record<string, number>>({});
-    const [activeUploads, setActiveUploads] = useState<{ filename: string, remotePath: string, progress: number, size?: number }[]>([]);
+    const [activeTransfers, setActiveTransfers] = useState<Transfer[]>([]);
+    const [showTransfers, setShowTransfers] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const dragCounter = useRef(0);
     const pendingDeletesRef = useRef<string[]>([]);
@@ -148,24 +160,30 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         });
 
         const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: Progress) => {
-            setProgress(prev => ({
-                ...prev,
-                [data.remotePath]: data.progress
-            }));
-            setActiveUploads(prev => prev.map(u =>
-                u.remotePath === data.remotePath ? { ...u, progress: data.progress, size: data.total } : u
-            ));
-
-            if (data.progress >= 100) {
-                setTimeout(() => {
-                    setProgress(prev => {
-                        const newProgress = {...prev};
-                        delete newProgress[data.remotePath];
-                        return newProgress;
-                    });
-                    setActiveUploads(prev => prev.filter(u => u.remotePath !== data.remotePath));
-                }, 1000);
-            }
+            setActiveTransfers(prev => {
+                const existing = prev.find(t => t.remotePath === data.remotePath && t.type === data.type && t.status === 'active');
+                if (existing) {
+                    return prev.map(t =>
+                        (t.remotePath === data.remotePath && t.type === data.type && t.status === 'active')
+                        ? { ...t, progress: data.progress, size: data.total || t.size, status: data.progress >= 100 ? 'success' : 'active' }
+                        : t
+                    );
+                }
+                // If not found (e.g. background recursive download starts a new file), add it
+                if (data.progress < 100) {
+                    const newTransfer: Transfer = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        filename: data.remotePath.split('/').pop() || 'unknown',
+                        remotePath: data.remotePath,
+                        progress: data.progress,
+                        size: data.total,
+                        type: data.type,
+                        status: 'active'
+                    };
+                    return [newTransfer, ...prev];
+                }
+                return prev;
+            });
         });
 
         ipcRenderer.send('sftp-connect', {id, config});
@@ -197,19 +215,28 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const handleDownload = async (filenames: string[]) => {
         if (filenames.length === 0) return;
 
+        const newTransfers: Transfer[] = filenames.map(filename => ({
+            id: Math.random().toString(36).substr(2, 9),
+            filename,
+            remotePath: `${path}/${filename}`.replace(/\/+/g, '/'),
+            progress: 0,
+            type: 'download',
+            status: 'active'
+        }));
+        setActiveTransfers(prev => [...newTransfers, ...prev]);
+        setShowTransfers(true);
+
         try {
             if (filenames.length === 1) {
                 const filename = filenames[0];
                 const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
-                const result = await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
-                if (result) loadDirectory(path);
+                await ipcRenderer.invoke('sftp-download-file', {id, remotePath, filename});
             } else {
                 const filesToDownload = filenames.map(filename => ({
                     filename,
                     remotePath: `${path}/${filename}`.replace(/\/+/g, '/')
                 }));
-                const results = await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
-                if (results) loadDirectory(path);
+                await ipcRenderer.invoke('sftp-download-multiple-files', {id, files: filesToDownload});
             }
         } catch (err: any) {
             const msg = err.message || String(err);
@@ -217,13 +244,22 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 return;
             }
             showError(`Ошибка скачивания: ${msg}`);
+            // Mark these transfers as error
+            setActiveTransfers(prev => prev.map(t =>
+                newTransfers.find(nt => nt.remotePath === t.remotePath && nt.type === 'download')
+                ? { ...t, status: 'error', error: msg }
+                : t
+            ));
         }
     };
 
     const handleUpload = async () => {
         try {
+            // Since sftp-upload-file opens a dialog, we can't pre-calculate Transfers.
+            // But we know it's an upload, and the progress events will handle adding it.
             const results = await ipcRenderer.invoke('sftp-upload-file', {id, remoteDir: path});
             if (results && results.length > 0) {
+                setShowTransfers(true);
                 loadDirectory(path);
             }
         } catch (err: any) {
@@ -372,14 +408,18 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
         if (filePaths.length === 0) return;
 
-        // Add to active uploads immediately
-        const newUploads = droppedFiles.map(f => ({
+        // Add to active transfers immediately
+        const newTransfers: Transfer[] = droppedFiles.map(f => ({
+            id: Math.random().toString(36).substr(2, 9),
             filename: f.name,
             remotePath: `${path}/${f.name}`.replace(/\/+/g, '/'),
             progress: 0,
-            size: f.size
+            size: f.size,
+            type: 'upload',
+            status: 'active'
         }));
-        setActiveUploads(prev => [...prev, ...newUploads]);
+        setActiveTransfers(prev => [...newTransfers, ...prev]);
+        setShowTransfers(true);
 
         try {
             const results = await ipcRenderer.invoke('sftp-upload-files-from-paths', {
@@ -397,21 +437,26 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             }
             showError(`Ошибка загрузки: ${msg}`);
             // Cleanup failed uploads
-            const failedPaths = newUploads.map(u => u.remotePath);
+            const failedPaths = newTransfers.map(u => u.remotePath);
             pendingDeletesRef.current = Array.from(new Set([...pendingDeletesRef.current, ...failedPaths]));
-            setActiveUploads(prev => prev.filter(u => !newUploads.find(nu => nu.remotePath === u.remotePath)));
+            setActiveTransfers(prev => prev.map(t =>
+                newTransfers.find(nt => nt.remotePath === t.remotePath && nt.type === 'upload')
+                ? { ...t, status: 'error', error: msg }
+                : t
+            ));
         }
     };
 
     const handleCancelUpload = async () => {
         try {
             // Save paths for later cleanup
-            const pathsToCleanup = activeUploads.map(u => u.remotePath);
+            const uploadsToCancel = activeTransfers.filter(t => t.type === 'upload' && t.status === 'active');
+            const pathsToCleanup = uploadsToCancel.map(u => u.remotePath);
             pendingDeletesRef.current = Array.from(new Set([...pendingDeletesRef.current, ...pathsToCleanup]));
 
             ipcRenderer.invoke('sftp-cancel-upload', { id });
-            setActiveUploads([]);
-            setProgress({});
+
+            setActiveTransfers(prev => prev.map(t => t.status === 'active' ? { ...t, status: 'cancelled' } : t));
             isConnectingRef.current = false;
             setStatus('Подключение...');
             setModal(null);
@@ -488,6 +533,128 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                     </div>
                 </div>
             )}
+            {/* Transfers Panel */}
+            <div className={`sftp-transfers-panel ${showTransfers ? 'open' : ''}`} style={{
+                position: 'absolute',
+                bottom: 0,
+                right: '20px',
+                width: '350px',
+                maxHeight: '400px',
+                background: 'var(--bg-color)',
+                border: '1px solid var(--border-color)',
+                borderBottom: 'none',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.15)',
+                transform: showTransfers ? 'translateY(0)' : 'translateY(calc(100% - 40px))',
+                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}>
+                <div
+                    onClick={() => setShowTransfers(!showTransfers)}
+                    style={{
+                        padding: '10px 15px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        background: 'rgba(0,0,0,0.03)',
+                        borderBottom: '1px solid var(--border-color)',
+                        borderTopLeftRadius: '8px',
+                        borderTopRightRadius: '8px'
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                        <UploadCloud size={16} color={primaryRed} />
+                        Передачи ({activeTransfers.filter(t => t.status === 'active').length})
+                    </div>
+                    {showTransfers ? <Minus size={16} /> : <Plus size={16} />}
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+                    {activeTransfers.length === 0 ? (
+                        <div style={{ padding: '20px', textAlign: 'center', opacity: 0.5, fontSize: '13px' }}>
+                            Нет активных передач
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {activeTransfers.map(transfer => (
+                                <div key={transfer.id} style={{
+                                    padding: '10px',
+                                    background: 'rgba(0,0,0,0.02)',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                            {transfer.type === 'upload' ? <Upload size={14} /> : <Download size={14} />}
+                                            <span style={{
+                                                fontSize: '13px',
+                                                fontWeight: 'bold',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                            }}>
+                                                {transfer.filename}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '12px', color: primaryRed, fontWeight: 'bold' }}>
+                                                {transfer.status === 'success' ? 'OK' : transfer.status === 'active' ? `${transfer.progress}%` : '!'}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (transfer.status === 'active') {
+                                                        setModal({ type: 'cancelUpload', cancelPath: transfer.remotePath });
+                                                    } else {
+                                                        setActiveTransfers(prev => prev.filter(t => t.id !== transfer.id));
+                                                    }
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', alignItems: 'center', opacity: 0.6 }}
+                                                title={transfer.status === 'active' ? "Отменить" : "Убрать из списка"}
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ width: '100%', height: '4px', background: 'rgba(0,0,0,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                                        <div style={{
+                                            width: `${transfer.progress}%`,
+                                            height: '100%',
+                                            background: transfer.status === 'success' ? '#50fa7b' : transfer.status === 'error' ? '#ff5555' : primaryRed,
+                                            transition: 'width 0.2s'
+                                        }} />
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                                        <span style={{ fontSize: '10px', opacity: 0.6 }}>
+                                            {transfer.size ? formatSize(transfer.size) : '--'}
+                                        </span>
+                                        <span style={{ fontSize: '10px', opacity: 0.6 }}>
+                                            {transfer.status === 'active' ? 'В процессе...' : transfer.status === 'success' ? 'Успешно' : 'Ошибка'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {activeTransfers.length > 0 && (
+                    <div style={{ padding: '10px', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
+                        <button
+                            className="btn-secondary"
+                            style={{ fontSize: '12px', padding: '4px 10px' }}
+                            onClick={() => setActiveTransfers([])}
+                        >
+                            Очистить список
+                        </button>
+                    </div>
+                )}
+            </div>
+
             {/* Toolbar */}
             <div className="sftp-toolbar" style={{
                 padding: '10px',
@@ -552,7 +719,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
 
             {/* Content */}
             <div className="sftp-content" style={{flex: 1, overflowY: 'auto', position: 'relative'}}>
-                {(loading || status !== 'SFTP-сессия готова') && files.length === 0 && activeUploads.length === 0 && (
+                {(loading || status !== 'SFTP-сессия готова') && files.length === 0 && activeTransfers.filter(t => t.status === 'active').length === 0 && (
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -595,37 +762,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {activeUploads.map((upload) => (
-                            <tr key={`upload-${upload.remotePath}`} className="sftp-row" style={{ opacity: 0.8 }}>
-                                <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                    <File size={18} color={primaryRed} className="spin" />
-                                </td>
-                                <td style={{ padding: '8px 10px', fontStyle: 'italic' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span>{upload.filename}</span>
-                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '10px', color: primaryRed }}>{upload.progress}%</span>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setModal({ type: 'cancelUpload', cancelPath: upload.remotePath }); }}
-                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', alignItems: 'center' }}
-                                                title="Отменить загрузку"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div style={{ width: '100%', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '4px' }}>
-                                        <div style={{ width: `${upload.progress}%`, height: '100%', background: primaryRed, transition: 'width 0.2s' }} />
-                                    </div>
-                                </td>
-                                <td style={{ padding: '8px 10px', opacity: 0.7 }}>{upload.size ? formatSize(upload.size) : '--'}</td>
-                                <td style={{ padding: '8px 10px', opacity: 0.7, fontSize: '12px' }}>Загрузка...</td>
-                            </tr>
-                        ))}
-                        {files.filter(f => !activeUploads.some(u => u.filename === f.filename)).map((file, index) => {
+                        {files.map((file, index) => {
                             const isDir = (file.attrs.mode & 0o040000) !== 0;
-                            const remotePath = `${path}/${file.filename}`.replace(/\/+/g, '/');
-                            const currentProgress = progress[remotePath];
                             const isSelected = selectedFilenames.includes(file.filename);
 
                             return (
@@ -652,14 +790,6 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     </td>
                                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                                         {file.filename}
-                                        {currentProgress !== undefined && (
-                                            <div style={{fontSize: '10px', color: primaryRed, marginTop: '2px'}}>
-                                                {currentProgress === 100 ? 'Готово' : `Загрузка: ${currentProgress}%`}
-                                                <div style={{width: '100px', height: '2px', background: 'rgba(0,0,0,0.1)', marginTop: '2px'}}>
-                                                    <div style={{width: `${currentProgress}%`, height: '100%', background: primaryRed}} />
-                                                </div>
-                                            </div>
-                                        )}
                                     </td>
                                     <td style={{padding: '8px 10px', opacity: 0.7}}>
                                         {isDir ? '--' : formatSize(file.attrs.size)}
@@ -670,7 +800,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                 </tr>
                             );
                         })}
-                        {!loading && files.length === 0 && !error && activeUploads.length === 0 && (
+                        {!loading && files.length === 0 && !error && (
                             <tr>
                                 <td colSpan={4} style={{padding: '40px', textAlign: 'center', opacity: 0.5}}>
                                     Папка пуста

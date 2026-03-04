@@ -302,7 +302,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 lastProgressTime = now
                                 const progress = Math.round((transferred / total) * 100)
                                 const win = getMainWindow()
-                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total })
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total, type: 'download' })
                             }
                         }
                     }, (err) => {
@@ -319,11 +319,15 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                     lastProgressTime = now
                                     const progress = Math.round((transferred / stats.size) * 100)
                                     const win = getMainWindow()
-                                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total: stats.size })
+                                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total: stats.size, type: 'download' })
                                 }
                             })
 
-                            writeStream.on('close', () => resolve({ remotePath: remote, localPath: local, size: stats.size }))
+                            writeStream.on('close', () => {
+                                const win = getMainWindow()
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress: 100, type: 'download' })
+                                resolve({ remotePath: remote, localPath: local, size: stats.size })
+                            })
                             writeStream.on('error', (e) => {
                                 if (fs.existsSync(local)) try { fs.unlinkSync(local) } catch {}
                                 reject(e)
@@ -422,11 +426,15 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                     step: (total_transferred, chunk, total) => {
                         const progress = Math.round((total_transferred / total) * 100)
                         const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress })
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, type: 'upload' })
                     }
                 }, (err) => {
                     if (err) reject(err)
-                    else resolve(remotePath)
+                    else {
+                        const win = getMainWindow()
+                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress: 100, type: 'upload' })
+                        resolve(remotePath)
+                    }
                 })
             })
             results.push(result)
@@ -459,7 +467,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 lastProgressTime = now
                                 const progress = Math.round((transferred / total) * 100)
                                 const win = getMainWindow()
-                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total })
+                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress, transferred, total, type: 'upload' })
                             }
                         }
                     }, (err) => {
@@ -471,6 +479,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 reject(err)
                             }
                         } else {
+                            const win = getMainWindow()
+                            if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: remote, progress: 100, type: 'upload' })
                             resolve({ remotePath: remote, size: stats.size })
                         }
                     })
