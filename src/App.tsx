@@ -660,13 +660,13 @@ function App() {
                                      width: '100%'
                                  }}>
                                 {tab.type === 'home' && (
-                                    <div style={{padding: '40px', textAlign: 'center', userSelect: 'none'}}>
+                                    <div style={{padding: '60px 40px', textAlign: 'center', userSelect: 'none'}}>
                                         <h2 style={{marginBottom: '30px', userSelect: 'none'}}>
                                             {config.favorites.length === 1 ? 'Сервер' : 'Сервера'}
                                         </h2>
                                         <div style={{
                                             display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 250px))',
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 270px))',
                                             gap: '20px',
                                             justifyContent: 'center',
                                             maxWidth: '1200px',
@@ -679,7 +679,7 @@ function App() {
                                                     onClick={() => addTab('ssh', fav.name, fav)}
                                                     onContextMenu={(e) => onContextMenu(e, fav)}
                                                     style={{
-                                                        height: '200px',
+                                                        height: '220px',
                                                         padding: '20px',
                                                         borderRadius: '15px',
                                                         cursor: 'pointer',
@@ -694,8 +694,8 @@ function App() {
                                                     }}
                                                 >
                                                     <div style={{
-                                                        width: '80px',
-                                                        height: '80px',
+                                                        width: '90px',
+                                                        height: '90px',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center'
@@ -703,19 +703,19 @@ function App() {
                                                         {fav.osPrettyName ? (
                                                             <img src={getOSIcon(fav.osPrettyName)}
                                                                  style={{
-                                                                     width: '64px',
-                                                                     height: '64px',
+                                                                     width: '72px',
+                                                                     height: '72px',
                                                                      objectFit: 'contain'
                                                                  }} alt="OS Icon"/>
                                                         ) : (
-                                                            <Server size={64} style={{opacity: 0.7}}/>
+                                                            <Server size={72} style={{opacity: 0.7}}/>
                                                         )}
                                                     </div>
                                                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%'}}>
-                                                        <div style={{fontWeight: 'bold', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>
+                                                        <div style={{fontWeight: 'bold', fontSize: '1.15em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>
                                                             {fav.name || fav.host}
                                                         </div>
-                                                        <div style={{opacity: 0.6, fontSize: '0.9em'}}>
+                                                        <div style={{opacity: 0.6, fontSize: '0.95em'}}>
                                                             ssh, {fav.user}
                                                         </div>
                                                     </div>
@@ -725,7 +725,7 @@ function App() {
                                                 className="server-list-item"
                                                 onClick={() => addTab('connection', 'Подключение')}
                                                 style={{
-                                                    height: '200px',
+                                                    height: '220px',
                                                     padding: '20px',
                                                     borderRadius: '15px',
                                                     cursor: 'pointer',
@@ -741,15 +741,15 @@ function App() {
                                                 }}
                                             >
                                                 <div style={{
-                                                    width: '80px',
-                                                    height: '80px',
+                                                    width: '90px',
+                                                    height: '90px',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     borderRadius: '50%',
                                                     background: 'rgba(0,0,0,0.05)'
                                                 }}>
-                                                    <Plus size={48} style={{opacity: 0.5}}/>
+                                                    <Plus size={56} style={{opacity: 0.5}}/>
                                                 </div>
                                                 <div style={{fontWeight: 'bold', fontSize: '1.1em'}}>
                                                     Добавить сервер
@@ -896,7 +896,7 @@ function App() {
                                             <br/>
                                             <b style={{fontSize: '1.5em'}}>YetAnotherSSHClient</b>
                                             <br/><br/>
-                                            Версия: 1.0.8
+                                            Версия: 1.1.0
                                             <br/><br/>
                                             GitHub: <a href="#" onClick={(e) => {
                                             e.preventDefault();
