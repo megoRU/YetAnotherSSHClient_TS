@@ -265,6 +265,12 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         });
     };
 
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -274,7 +280,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const handleDragLeave = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragging(false);
+        // Only set to false if we leave the container itself, not its children
+        if (e.currentTarget === e.target) {
+            setIsDragging(false);
+        }
     };
 
     const handleDrop = async (e: React.DragEvent) => {
@@ -315,6 +324,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     return (
         <div
             className={`sftp-container ${isDragging ? 'dragging' : ''}`}
+            onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -509,7 +519,12 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                             icon: <MousePointer2 size={14} />,
                             onClick: () => {
                                 if (contextMenu.file) {
-                                    handleNavigate(contextMenu.file.filename, (contextMenu.file.attrs.mode & 0o040000) !== 0);
+                                    const isDir = (contextMenu.file.attrs.mode & 0o040000) !== 0;
+                                    if (isDir) {
+                                        handleNavigate(contextMenu.file.filename, true);
+                                    } else {
+                                        handleEdit(contextMenu.file.filename);
+                                    }
                                 }
                             }
                         },
