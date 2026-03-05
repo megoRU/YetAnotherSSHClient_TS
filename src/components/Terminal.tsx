@@ -173,8 +173,9 @@ export const TerminalComponent: React.FC<Props> = ({
             cursorBlink: true,
             cursorStyle: 'block',
             theme: getXtermTheme(theme),
-            fontFamily: terminalFontName,
+            fontFamily: "'" + terminalFontName + "', monospace",
             fontSize: terminalFontSize,
+            letterSpacing: 0.5,
             allowProposedApi: true,
             scrollback: 5000,
             scrollSensitivity: 2,
@@ -321,7 +322,7 @@ export const TerminalComponent: React.FC<Props> = ({
     useEffect(() => {
         if (xtermRef.current) {
             xtermRef.current.options.theme = getXtermTheme(theme);
-            xtermRef.current.options.fontFamily = terminalFontName;
+            xtermRef.current.options.fontFamily = "'" + terminalFontName + "', monospace";
             xtermRef.current.options.fontSize = terminalFontSize;
         }
     }, [theme, terminalFontName, terminalFontSize]);
@@ -365,6 +366,7 @@ export const TerminalComponent: React.FC<Props> = ({
             flexDirection: 'column',
             position: 'relative',
             paddingLeft: '15px',
+            paddingTop: '10px',
             boxSizing: 'border-box',
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'
