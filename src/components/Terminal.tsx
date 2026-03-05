@@ -178,7 +178,7 @@ export const TerminalComponent: React.FC<Props> = ({
             letterSpacing: 0.5,
             allowProposedApi: true,
             scrollback: 5000,
-            scrollSensitivity: 10,
+            scrollSensitivity: 2,
         });
         const fitAddon = new FitAddon();
         const clipboardAddon = new ClipboardAddon();
@@ -366,7 +366,7 @@ export const TerminalComponent: React.FC<Props> = ({
             flexDirection: 'column',
             position: 'relative',
             paddingLeft: '15px',
-            paddingTop: '5px',
+            paddingTop: '10px',
             boxSizing: 'border-box',
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'
