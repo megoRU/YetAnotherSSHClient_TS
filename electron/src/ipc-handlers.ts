@@ -548,7 +548,9 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         if (!sftp) return null
 
         const tmpDir = app.getPath('temp')
-        const localPath = path.join(tmpDir, `yash_${Date.now()}_${filename}`)
+        const fileDir = path.join(tmpDir, `yash_${Date.now()}`)
+        if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true })
+        const localPath = path.join(fileDir, filename)
 
         await new Promise((resolve, reject) => {
             sftp.fastGet(remotePath, localPath, (err) => {
