@@ -175,6 +175,7 @@ export const TerminalComponent: React.FC<Props> = ({
             theme: getXtermTheme(theme),
             fontFamily: "'" + terminalFontName + "', monospace",
             fontSize: terminalFontSize,
+            letterSpacing: 0.5,
             allowProposedApi: true,
             scrollback: 5000,
             scrollSensitivity: 2,
@@ -365,6 +366,7 @@ export const TerminalComponent: React.FC<Props> = ({
             flexDirection: 'column',
             position: 'relative',
             paddingLeft: '15px',
+            paddingTop: '5px',
             boxSizing: 'border-box',
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'
