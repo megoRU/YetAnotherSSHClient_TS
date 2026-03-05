@@ -217,6 +217,8 @@ export const TerminalComponent: React.FC<Props> = ({
                 const isPaste = (isMac && e.metaKey && e.code === 'KeyV') || (e.ctrlKey && e.shiftKey && e.code === 'KeyV');
 
                 if (isCopy) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     const selection = term.getSelection();
                     if (selection) {
                         navigator.clipboard.writeText(selection);
@@ -225,8 +227,12 @@ export const TerminalComponent: React.FC<Props> = ({
                 }
 
                 if (isPaste) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     navigator.clipboard.readText().then(text => {
-                        ipcRenderer.send('ssh-input', { id: connId, data: text });
+                        if (text && isMountedRef.current) {
+                            term.paste(text);
+                        }
                     });
                     return false;
                 }
