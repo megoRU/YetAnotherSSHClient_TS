@@ -5,7 +5,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { loadConfig, saveConfig } from './config.js'
 import { getSystemFonts } from './font-service.js'
-import { sshClients, shellStreams, sshSockets, sftpClients, cleanupConnection, cleanupAll } from './ssh-manager.js'
+import { sshClients, shellStreams, sshSockets, sftpClients, sftpWatchers, cleanupConnection, cleanupAll } from './ssh-manager.js'
 import { AppConfig, SshConnectPayload, SftpConnectPayload } from './types.js'
 
 /**
@@ -557,8 +557,50 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
             })
         })
 
+        // Setup file watcher
+        let debounceTimer: NodeJS.Timeout | null = null
+        const watcher = fs.watch(localPath, (eventType) => {
+            if (eventType === 'change') {
+                if (debounceTimer) clearTimeout(debounceTimer)
+                debounceTimer = setTimeout(() => {
+                    const win = getMainWindow()
+                    if (win) {
+                        win.webContents.send(`sftp-file-changed-${id}`, {
+                            localPath,
+                            remotePath,
+                            filename
+                        })
+                    }
+                }, 500)
+            }
+        })
+
+        if (!sftpWatchers.has(id)) {
+            sftpWatchers.set(id, new Map())
+        }
+        sftpWatchers.get(id)!.set(localPath, watcher)
+
         await shell.openPath(localPath)
         return true
+    })
+
+    ipcMain.handle('sftp-upload-direct', async (_, payload: { id: string; localPath: string; remotePath: string }) => {
+        const { id, localPath, remotePath } = payload
+        const sftp = sftpClients.get(id)
+        if (!sftp) throw new Error('SFTP client not found')
+
+        return new Promise((resolve, reject) => {
+            sftp.fastPut(localPath, remotePath, (err) => {
+                if (err) reject(err)
+                else {
+                    const win = getMainWindow()
+                    if (win) {
+                        win.webContents.send(`sftp-progress-${id}`, { remotePath, progress: 100, type: 'upload' })
+                    }
+                    resolve(true)
+                }
+            })
+        })
     })
 
     ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }) => {
