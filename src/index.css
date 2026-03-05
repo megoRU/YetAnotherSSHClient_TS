@@ -1,5 +1,12 @@
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
-  --ui-font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --ui-font-family: 'JetBrains Mono', system-ui, Avenir, Helvetica, Arial, sans-serif;
   --ui-font-size: 14px;
   font-family: var(--ui-font-family);
   font-size: var(--ui-font-size);
