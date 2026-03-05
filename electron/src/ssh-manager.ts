@@ -1,5 +1,6 @@
 import { Client, type ClientChannel, type SFTPWrapper } from 'ssh2'
 import * as net from 'node:net'
+import * as fs from 'node:fs'
 
 /** Хранилище активных SSH-клиентов по ID сессии */
 export const sshClients = new Map<string, Client>()
@@ -13,12 +14,22 @@ export const sftpClients = new Map<string, SFTPWrapper>()
 /** Хранилище TCP-сокетов для SSH-соединений по ID сессии */
 export const sshSockets = new Map<string, net.Socket>()
 
+/** Хранилище активных вотчеров за файлами по ID сессии и локальному пути */
+export const sftpWatchers = new Map<string, Map<string, fs.FSWatcher>>()
+
 /**
  * Закрывает и удаляет конкретное SSH-соединение по его ID.
  *
  * @param {string} id - Уникальный идентификатор сессии.
  */
 export function cleanupConnection(id: string): void {
+    // Очистка вотчеров
+    const watchers = sftpWatchers.get(id)
+    if (watchers) {
+        watchers.forEach(w => w.close())
+        sftpWatchers.delete(id)
+    }
+
     sftpClients.get(id)?.end()
     shellStreams.get(id)?.destroy()
     sshClients.get(id)?.destroy()
@@ -34,6 +45,9 @@ export function cleanupConnection(id: string): void {
  * Используется при выходе из приложения.
  */
 export function cleanupAll(): void {
+    sftpWatchers.forEach(watchers => watchers.forEach(w => w.close()))
+    sftpWatchers.clear()
+
     sftpClients.forEach(s => s.end())
     shellStreams.forEach(s => s.destroy())
     sshClients.forEach(c => c.destroy())

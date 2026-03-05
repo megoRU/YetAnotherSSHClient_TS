@@ -63,7 +63,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
 
     // Modal states
-    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload', file?: FileEntry, errorMessage?: string, cancelPath?: string } | null>(null);
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload' | 'fileUpdate', file?: FileEntry, errorMessage?: string, cancelPath?: string, localPath?: string, remotePath?: string, filename?: string } | null>(null);
     const [modalInput, setModalInput] = useState('');
 
     const isConnectingRef = useRef(false);
@@ -177,6 +177,15 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             isConnectingRef.current = false;
         });
 
+        const unsubFileChanged = ipcRenderer.on(`sftp-file-changed-${id}`, (data: { localPath: string, remotePath: string, filename: string }) => {
+            setModal({
+                type: 'fileUpdate',
+                localPath: data.localPath,
+                remotePath: data.remotePath,
+                filename: data.filename
+            });
+        });
+
         const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: Progress) => {
             setActiveTransfers(prev => {
                 const normalizedPath = normalizeRemotePath(data.remotePath);
@@ -223,6 +232,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             if (typeof unsubStatus === 'function') unsubStatus();
             if (typeof unsubError === 'function') unsubError();
             if (typeof unsubProgress === 'function') unsubProgress();
+            if (typeof unsubFileChanged === 'function') unsubFileChanged();
             ipcRenderer.send('ssh-close', id);
         };
     }, [id]);
@@ -351,6 +361,21 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             loadDirectory(path);
         } catch (err: any) {
             showError(`Ошибка изменения прав: ${err.message}`);
+        }
+    };
+
+    const handleUpdateFromServer = async () => {
+        if (!modal || modal.type !== 'fileUpdate' || !modal.localPath || !modal.remotePath) return;
+        try {
+            await ipcRenderer.invoke('sftp-upload-direct', {
+                id,
+                localPath: modal.localPath,
+                remotePath: modal.remotePath
+            });
+            setModal(null);
+            loadDirectory(path);
+        } catch (err: any) {
+            showError(`Ошибка обновления файла: ${err.message}`);
         }
     };
 
@@ -945,11 +970,16 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                 {modal.type === 'permissions' && 'Права доступа'}
                                 {modal.type === 'error' && 'Ошибка'}
                                 {modal.type === 'cancelUpload' && 'Отмена загрузки'}
+                                {modal.type === 'fileUpdate' && 'Обновление файла'}
                             </h3>
                         </div>
 
                         {modal.type === 'delete' && (
                             <p>Вы уверены, что хотите удалить <b>{selectedFilenames.length > 1 ? `${selectedFilenames.length} элементов` : modal.file?.filename}</b>?</p>
+                        )}
+
+                        {modal.type === 'fileUpdate' && (
+                            <p>Файл <b>{modal.filename}</b> был изменен. Обновить его на сервере?</p>
                         )}
 
                         {modal.type === 'error' && (
@@ -988,9 +1018,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                                     else if (modal.type === 'permissions') handlePermissions();
                                     else if (modal.type === 'error') setModal(null);
                                     else if (modal.type === 'cancelUpload') handleCancelUpload();
+                                    else if (modal.type === 'fileUpdate') handleUpdateFromServer();
                                 }}
                             >
-                                {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : modal.type === 'cancelUpload' ? 'Да, отменить' : 'Сохранить'}
+                                {modal.type === 'delete' ? 'Удалить' : modal.type === 'error' ? 'OK' : modal.type === 'cancelUpload' ? 'Да, отменить' : modal.type === 'fileUpdate' ? 'Обновить' : 'Сохранить'}
                             </button>
                         </div>
                     </div>
