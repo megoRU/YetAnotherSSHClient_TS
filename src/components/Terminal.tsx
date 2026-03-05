@@ -178,7 +178,7 @@ export const TerminalComponent: React.FC<Props> = ({
             letterSpacing: 0.5,
             allowProposedApi: true,
             scrollback: 5000,
-            scrollSensitivity: 2,
+            scrollSensitivity: 10,
         });
         const fitAddon = new FitAddon();
         const clipboardAddon = new ClipboardAddon();
