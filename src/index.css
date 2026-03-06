@@ -65,7 +65,6 @@ button {
   transition: all 0.2s ease;
 }
 button:hover {
-  transform: translateY(-1px);
 }
 button:focus,
 button:focus-visible {
