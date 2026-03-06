@@ -154,7 +154,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                             padding: '10px',
                             borderRadius: '6px',
                             border: '1px solid var(--border-color)',
-                            background: 'rgba(0,0,0,0.03)',
+                            background: 'var(--input-bg)',
+                            color: 'var(--text-color)',
                             userSelect: 'text',
                             fontFamily: 'inherit',
                             resize: 'vertical'

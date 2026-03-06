@@ -14,3 +14,7 @@ body.light option {
   background-color: #ffffff !important;
   color: #000000 !important;
 }
+
+.tab.active {
+  color: #c81e51 !important;
+}

@@ -10,14 +10,16 @@ body.dark {
 }
 
 body.dark input,
-body.dark select {
+body.dark select,
+body.dark textarea {
   color: #ebdbb2 !important;
   background-color: #3c3836 !important;
   border-color: #504945 !important;
 }
 
 body.dark input:focus,
-body.dark select:focus {
+body.dark select:focus,
+body.dark textarea:focus {
   outline: none;
   border-color: #fb4934 !important;
   background-color: #3c3836 !important;
@@ -35,6 +37,7 @@ body.dark select option {
 
 .tab.active {
   background-color: var(--bg-color) !important;
+  color: #fb4934 !important;
 }
 
 .terminal-container {
