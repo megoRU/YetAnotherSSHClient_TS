@@ -17,12 +17,13 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
         user: 'root',
         password: '',
         authType: 'password',
-        privateKeyPath: ''
+        privateKeyPath: '',
+        initialCommands: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const {name, value} = e.target;
         setConfig((prev: any) => ({...prev, [name]: value}));
     };
@@ -136,6 +137,27 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({onConnect, onSave
                             border: '1px solid var(--border-color)',
                             background: 'rgba(0,0,0,0.03)',
                             userSelect: 'text'
+                        }}
+                    />
+                </div>
+
+                <div>
+                    <label style={{display: 'block', marginBottom: '8px', opacity: 0.7}}>Команды при подключении (по одной на строку)</label>
+                    <textarea
+                        name="initialCommands"
+                        value={config.initialCommands}
+                        onChange={handleChange}
+                        placeholder="cd /var/www/html&#10;ls -la"
+                        rows={3}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            background: 'rgba(0,0,0,0.03)',
+                            userSelect: 'text',
+                            fontFamily: 'inherit',
+                            resize: 'vertical'
                         }}
                     />
                 </div>

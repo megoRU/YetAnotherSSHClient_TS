@@ -11,6 +11,7 @@ export interface SSHConfig {
     authType?: 'password' | 'key'
     privateKeyPath?: string
     osPrettyName?: string
+    initialCommands?: string
 }
 
 /**
@@ -48,3 +49,35 @@ export interface SftpConnectPayload {
     id: string;
     config: SSHConfig;
 }
+
+/**
+ * Описание файла или директории в SFTP
+ */
+export interface SftpFileEntry {
+    filename: string;
+    longname: string;
+    attrs: {
+        mode: number;
+        uid: number;
+        gid: number;
+        size: number;
+        atime: number;
+        mtime: number;
+    };
+}
+
+/**
+ * Данные о прогрессе передачи SFTP
+ */
+export interface SftpProgress {
+    remotePath: string;
+    progress: number;
+    transferred?: number;
+    total?: number;
+    type: 'upload' | 'download';
+}
+
+/**
+ * Состояние передачи SFTP
+ */
+export type SftpTransferStatus = 'active' | 'success' | 'error' | 'cancelled';

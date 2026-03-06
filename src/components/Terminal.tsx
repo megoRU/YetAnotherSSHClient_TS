@@ -175,6 +175,9 @@ export const TerminalComponent: React.FC<Props> = ({
             theme: getXtermTheme(theme),
             fontFamily: "'" + terminalFontName + "', monospace",
             fontSize: terminalFontSize,
+            fontWeight: 400,
+            fontWeightBold: 700,
+            lineHeight: 1.2,
             letterSpacing: 0.5,
             allowProposedApi: true,
             scrollback: 5000,
@@ -324,6 +327,9 @@ export const TerminalComponent: React.FC<Props> = ({
             xtermRef.current.options.theme = getXtermTheme(theme);
             xtermRef.current.options.fontFamily = "'" + terminalFontName + "', monospace";
             xtermRef.current.options.fontSize = terminalFontSize;
+            xtermRef.current.options.fontWeight = 400;
+            xtermRef.current.options.fontWeightBold = 700;
+            xtermRef.current.options.lineHeight = 1.2;
         }
     }, [theme, terminalFontName, terminalFontSize]);
 

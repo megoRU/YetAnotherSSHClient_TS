@@ -2,28 +2,16 @@ import React, {useEffect, useState, useCallback, useRef} from 'react';
 import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle, X, Plus, Minus} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
 
-const {ipcRenderer} = window as any;
+const {ipcRenderer} = window as {
+    ipcRenderer: {
+        send: (channel: string, ...args: any[]) => void;
+        on: (channel: string, func: (...args: any[]) => void) => () => void;
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+        getPathForFile?: (file: File) => string;
+    }
+};
 
-interface FileEntry {
-    filename: string;
-    longname: string;
-    attrs: {
-        mode: number;
-        uid: number;
-        gid: number;
-        size: number;
-        atime: number;
-        mtime: number;
-    };
-}
-
-interface Progress {
-    remotePath: string;
-    progress: number;
-    transferred?: number;
-    total?: number;
-    type: 'upload' | 'download';
-}
+import { SftpFileEntry, SftpProgress, SftpTransferStatus, SSHConfig } from '../../electron/src/types';
 
 interface Transfer {
     id: string;
@@ -32,20 +20,20 @@ interface Transfer {
     progress: number;
     size?: number;
     type: 'upload' | 'download';
-    status: 'active' | 'success' | 'error' | 'cancelled';
+    status: SftpTransferStatus;
     error?: string;
 }
 
 interface Props {
     id: string;
-    config: any;
+    config: SSHConfig;
     visible?: boolean;
 }
 
 export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [theme, setTheme] = useState(document.body.className);
     const [path, setPath] = useState('');
-    const [files, setFiles] = useState<FileEntry[]>([]);
+    const [files, setFiles] = useState<SftpFileEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState('Подключение...');
@@ -60,10 +48,10 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
     const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
 
     // Context menu state
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: FileEntry } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file?: SftpFileEntry } | null>(null);
 
     // Modal states
-    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload' | 'fileUpdate', file?: FileEntry, errorMessage?: string, cancelPath?: string, localPath?: string, remotePath?: string, filename?: string } | null>(null);
+    const [modal, setModal] = useState<{ type: 'delete' | 'rename' | 'permissions' | 'error' | 'cancelUpload' | 'fileUpdate', file?: SftpFileEntry, errorMessage?: string, cancelPath?: string, localPath?: string, remotePath?: string, filename?: string } | null>(null);
     const [modalInput, setModalInput] = useState('');
 
     const isConnectingRef = useRef(false);
@@ -96,9 +84,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         setSelectedFilenames([]);
         setLastSelectedIndex(-1);
         try {
-            const list = await ipcRenderer.invoke('sftp-readdir', {id, path: normalizedPath});
-            const filteredList = (list || []).filter((f: FileEntry) => !f.filename.startsWith('.'));
-            filteredList.sort((a: FileEntry, b: FileEntry) => {
+            const list: SftpFileEntry[] | null = await ipcRenderer.invoke('sftp-readdir', {id, path: normalizedPath});
+            const filteredList = (list || []).filter((f: SftpFileEntry) => !f.filename.startsWith('.'));
+            filteredList.sort((a: SftpFileEntry, b: SftpFileEntry) => {
                 const aIsDir = (a.attrs.mode & 0o040000) !== 0;
                 const bIsDir = (b.attrs.mode & 0o040000) !== 0;
                 if (aIsDir && !bIsDir) return -1;
@@ -107,8 +95,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             });
             setFiles(filteredList);
             setPath(dirPath);
-        } catch (err: any) {
-            const msg = err.message || String(err);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
             if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('not found')) {
                 // Ignore errors during reconnection
                 return;
@@ -186,7 +174,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             });
         });
 
-        const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: Progress) => {
+        const unsubProgress = ipcRenderer.on(`sftp-progress-${id}`, (data: SftpProgress) => {
             setActiveTransfers(prev => {
                 const normalizedPath = normalizeRemotePath(data.remotePath);
                 const existingIndex = prev.findIndex(t =>
@@ -302,8 +290,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
                 setShowTransfers(true);
                 loadDirectory(path);
             }
-        } catch (err: any) {
-            showError(`Ошибка загрузки: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка загрузки: ${msg}`);
         }
     };
 
@@ -311,8 +300,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         const remotePath = `${path}/${filename}`.replace(/\/+/g, '/');
         try {
             await ipcRenderer.invoke('sftp-open-in-editor', {id, remotePath, filename});
-        } catch (err: any) {
-            showError(`Ошибка открытия: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка открытия: ${msg}`);
         }
     };
 
@@ -331,8 +321,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             }
             setModal(null);
             loadDirectory(path);
-        } catch (err: any) {
-            showError(`Ошибка удаления: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка удаления: ${msg}`);
             setLoading(false);
         }
     };
@@ -345,8 +336,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             await ipcRenderer.invoke('sftp-rename', {id, oldPath, newPath});
             setModal(null);
             loadDirectory(path);
-        } catch (err: any) {
-            showError(`Ошибка переименования: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка переименования: ${msg}`);
         }
     };
 
@@ -359,8 +351,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             await ipcRenderer.invoke('sftp-chmod', {id, path: remotePath, mode});
             setModal(null);
             loadDirectory(path);
-        } catch (err: any) {
-            showError(`Ошибка изменения прав: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка изменения прав: ${msg}`);
         }
     };
 
@@ -374,8 +367,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             });
             setModal(null);
             loadDirectory(path);
-        } catch (err: any) {
-            showError(`Ошибка обновления файла: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка обновления файла: ${msg}`);
         }
     };
 
@@ -386,8 +380,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         try {
             await ipcRenderer.invoke('sftp-extract', {id, remotePath});
             loadDirectory(path);
-        } catch (err: any) {
-            showError(`Ошибка распаковки: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка распаковки: ${msg}`);
             setLoading(false);
             setStatus('SFTP-сессия готова');
         }
@@ -410,7 +405,7 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
         }
     };
 
-    const onFileContextMenu = (e: React.MouseEvent, file: FileEntry) => {
+    const onFileContextMenu = (e: React.MouseEvent, file: SftpFileEntry) => {
         e.preventDefault();
         e.stopPropagation();
         if (!selectedFilenames.includes(file.filename)) {
@@ -485,8 +480,8 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             if (results && results.length > 0) {
                 loadDirectory(path);
             }
-        } catch (err: any) {
-            const msg = err.message || String(err);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
             if (msg.includes('No response from server') || msg.includes('Channel closed') || msg.includes('destroyed')) {
                 return;
             }
@@ -521,8 +516,9 @@ export const SFTPBrowser: React.FC<Props> = ({id, config, visible}) => {
             setTimeout(() => {
                 ipcRenderer.send('sftp-connect', {id, config});
             }, 1500);
-        } catch (err: any) {
-            showError(`Ошибка отмены: ${err.message}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showError(`Ошибка отмены: ${msg}`);
         }
     };
 

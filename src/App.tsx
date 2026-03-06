@@ -21,6 +21,7 @@ interface SSHConfig {
     authType?: 'password' | 'key'
     privateKeyPath?: string
     osPrettyName?: string
+    initialCommands?: string
 }
 
 interface AppConfig {
