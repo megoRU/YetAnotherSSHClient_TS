@@ -1,6 +1,41 @@
 import React, {useEffect, useState, useCallback, useRef} from 'react';
 import {File, Folder, RefreshCw, Home, ArrowUp, Download, Upload, Edit, Trash2, Shield, MousePointer2, Archive, UploadCloud, AlertTriangle, X, Plus, Minus} from 'lucide-react';
 import {ContextMenu} from './ContextMenu';
+interface SftpFileEntry {
+    filename: string;
+    longname: string;
+    attrs: {
+        mode: number;
+        uid: number;
+        gid: number;
+        size: number;
+        atime: number;
+        mtime: number;
+    };
+}
+
+interface SftpProgress {
+    remotePath: string;
+    progress: number;
+    transferred?: number;
+    total?: number;
+    type: 'upload' | 'download';
+}
+
+type SftpTransferStatus = 'active' | 'success' | 'error' | 'cancelled';
+
+interface SSHConfig {
+    id?: string
+    name: string
+    user: string
+    host: string
+    port: number
+    password?: string
+    authType?: 'password' | 'key'
+    privateKeyPath?: string
+    osPrettyName?: string
+    initialCommands?: string
+}
 
 const {ipcRenderer} = window as {
     ipcRenderer: {
@@ -10,8 +45,6 @@ const {ipcRenderer} = window as {
         getPathForFile?: (file: File) => string;
     }
 };
-
-import { SftpFileEntry, SftpProgress, SftpTransferStatus, SSHConfig } from '../../electron/src/types';
 
 interface Transfer {
     id: string;
