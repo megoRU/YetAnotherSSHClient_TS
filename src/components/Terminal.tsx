@@ -373,6 +373,7 @@ export const TerminalComponent: React.FC<Props> = ({
             position: 'relative',
             paddingLeft: '15px',
             paddingTop: '10px',
+            paddingBottom: '20px',
             boxSizing: 'border-box',
             backgroundColor: 'var(--bg-color)',
             overflow: 'hidden'
