@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { loadConfig, saveConfig } from './config.js'
 import { getSystemFonts } from './font-service.js'
 import { sshClients, shellStreams, sshSockets, sftpClients, sftpWatchers, cleanupConnection, cleanupAll } from './ssh-manager.js'
-import { AppConfig, SshConnectPayload, SftpConnectPayload } from './types.js'
+import { AppConfig, SshConnectPayload, SftpConnectPayload, SftpFileEntry, SftpProgress } from './types.js'
 
 /**
  * Регистрирует все IPC-обработчики приложения.
@@ -109,6 +109,18 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                 stream.on('data', (chunk: Buffer) => {
                     event.reply(`ssh-output-${id}`, chunk)
                 })
+
+                if (config.initialCommands) {
+                    const commands = config.initialCommands.split('\n').filter(c => c.trim() !== '')
+                    if (commands.length > 0) {
+                        // Небольшая задержка, чтобы оболочка успела вывести приветствие
+                        setTimeout(() => {
+                            for (const cmd of commands) {
+                                stream.write(cmd + '\n')
+                            }
+                        }, 500)
+                    }
+                }
 
                 stream.on('close', () => {
                     sshClient.end()
@@ -240,7 +252,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
 
     const normalizeRemotePath = (p: string) => p.replace(/\/+/g, '/').replace(/\/$/, '') || '/'
 
-    ipcMain.handle('sftp-realpath', async (_, payload: { id: string; path: string }) => {
+    ipcMain.handle('sftp-realpath', async (_, payload: { id: string; path: string }): Promise<string> => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return '/'
@@ -253,7 +265,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-extract', async (_, payload: { id: string; remotePath: string }) => {
+    ipcMain.handle('sftp-extract', async (_, payload: { id: string; remotePath: string }): Promise<boolean> => {
         const { id, remotePath } = payload
         const client = sshClients.get(id)
         if (!client) throw new Error('SSH-клиент не найден')
@@ -293,7 +305,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    async function downloadRecursive(id: string, remote: string, local: string): Promise<any> {
+    async function downloadRecursive(id: string, remote: string, local: string): Promise<{ remotePath: string; localPath?: string; isDir?: boolean; size?: number }> {
         const sftp = sftpClients.get(id)
         if (!sftp) return
 
@@ -307,7 +319,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                     if (!fs.existsSync(local)) fs.mkdirSync(local, { recursive: true })
 
                     const win = getMainWindow()
-                    if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 0, type: 'download' })
+                    if (win) {
+                        const progress: SftpProgress = { remotePath: normalizedRemote, progress: 0, type: 'download' }
+                        win.webContents.send(`sftp-progress-${id}`, progress)
+                    }
 
                     sftp.readdir(normalizedRemote, async (err, list) => {
                         if (err) return reject(err)
@@ -316,7 +331,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 if (item.filename === '.' || item.filename === '..') continue
                                 await downloadRecursive(id, `${normalizedRemote}/${item.filename}`, path.join(local, item.filename))
                             }
-                            if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 100, type: 'download' })
+                            if (win) {
+                                const progress: SftpProgress = { remotePath: normalizedRemote, progress: 100, type: 'download' }
+                                win.webContents.send(`sftp-progress-${id}`, progress)
+                            }
                             resolve({ remotePath: normalizedRemote, localPath: local, isDir: true })
                         } catch (re) {
                             reject(re)
@@ -331,7 +349,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 lastProgressTime = now
                                 const progress = Math.round((transferred / total) * 100)
                                 const win = getMainWindow()
-                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress, transferred, total, type: 'download' })
+                                if (win) {
+                                    const progressData: SftpProgress = { remotePath: normalizedRemote, progress, transferred, total, type: 'download' }
+                                    win.webContents.send(`sftp-progress-${id}`, progressData)
+                                }
                             }
                         }
                     }, (err) => {
@@ -365,7 +386,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                         }
                         else {
                             const win = getMainWindow()
-                            if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 100, type: 'download' })
+                            if (win) {
+                                const progressData: SftpProgress = { remotePath: normalizedRemote, progress: 100, type: 'download' }
+                                win.webContents.send(`sftp-progress-${id}`, progressData)
+                            }
                             resolve({ remotePath: normalizedRemote, localPath: local, size: stats.size })
                         }
                     })
@@ -374,7 +398,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     }
 
-    ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string; isDir?: boolean }[] }) => {
+    ipcMain.handle('sftp-download-multiple-files', async (event, payload: { id: string; files: { remotePath: string; filename: string; isDir?: boolean }[] }): Promise<any[] | null> => {
         const { id, files } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -396,7 +420,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
-    ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }) => {
+    ipcMain.handle('sftp-chmod', async (_, payload: { id: string; path: string; mode: number | string }): Promise<boolean | null> => {
         const { id, path, mode } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -409,7 +433,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }) => {
+    ipcMain.handle('sftp-readdir', async (_, payload: { id: string; path: string }): Promise<SftpFileEntry[] | null> => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -422,7 +446,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-download-file', async (event, payload: { id: string; remotePath: string; filename: string }) => {
+    ipcMain.handle('sftp-download-file', async (event, payload: { id: string; remotePath: string; filename: string }): Promise<any | null> => {
         const { id, remotePath, filename } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -436,7 +460,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return downloadRecursive(id, remotePath, filePath)
     })
 
-    ipcMain.handle('sftp-upload-file', async (event, payload: { id: string; remoteDir: string }) => {
+    ipcMain.handle('sftp-upload-file', async (event, payload: { id: string; remoteDir: string }): Promise<string[] | null> => {
         const { id, remoteDir } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -458,13 +482,19 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                     step: (total_transferred, chunk, total) => {
                         const progress = Math.round((total_transferred / total) * 100)
                         const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress, type: 'upload' })
+                        if (win) {
+                            const progressData: SftpProgress = { remotePath, progress, type: 'upload' }
+                            win.webContents.send(`sftp-progress-${id}`, progressData)
+                        }
                     }
                 }, (err) => {
                     if (err) reject(err)
                     else {
                         const win = getMainWindow()
-                        if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath, progress: 100, type: 'upload' })
+                        if (win) {
+                            const progressData: SftpProgress = { remotePath, progress: 100, type: 'upload' }
+                            win.webContents.send(`sftp-progress-${id}`, progressData)
+                        }
                         resolve(remotePath)
                     }
                 })
@@ -474,19 +504,22 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
-    ipcMain.handle('sftp-upload-files-from-paths', async (event, payload: { id: string; remoteDir: string; filePaths: string[] }) => {
+    ipcMain.handle('sftp-upload-files-from-paths', async (event, payload: { id: string; remoteDir: string; filePaths: string[] }): Promise<any[] | null> => {
         const { id, remoteDir, filePaths } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
 
-        const uploadRecursive = async (local: string, remote: string): Promise<any> => {
+        const uploadRecursive = async (local: string, remote: string): Promise<{ remotePath: string; isDir?: boolean; items?: any[]; cancelled?: boolean; size?: number }> => {
             const normalizedRemote = normalizeRemotePath(remote)
             const stats = fs.statSync(local)
             if (stats.isDirectory()) {
                 await new Promise((resolve) => sftp.mkdir(normalizedRemote, () => resolve(true)))
 
                 const win = getMainWindow()
-                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 0, type: 'upload' })
+                if (win) {
+                    const progress: SftpProgress = { remotePath: normalizedRemote, progress: 0, type: 'upload' }
+                    win.webContents.send(`sftp-progress-${id}`, progress)
+                }
 
                 const files = fs.readdirSync(local)
                 const items = []
@@ -494,7 +527,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                     items.push(await uploadRecursive(path.join(local, file), `${normalizedRemote}/${file}`))
                 }
 
-                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 100, type: 'upload' })
+                if (win) {
+                    const progress: SftpProgress = { remotePath: normalizedRemote, progress: 100, type: 'upload' }
+                    win.webContents.send(`sftp-progress-${id}`, progress)
+                }
                 return { remotePath: normalizedRemote, isDir: true, items }
             } else {
                 let lastProgressTime = 0
@@ -506,7 +542,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                                 lastProgressTime = now
                                 const progress = Math.round((transferred / total) * 100)
                                 const win = getMainWindow()
-                                if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress, transferred, total, type: 'upload' })
+                                if (win) {
+                                    const progressData: SftpProgress = { remotePath: normalizedRemote, progress, transferred, total, type: 'upload' }
+                                    win.webContents.send(`sftp-progress-${id}`, progressData)
+                                }
                             }
                         }
                     }, (err) => {
@@ -519,7 +558,10 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                             }
                         } else {
                             const win = getMainWindow()
-                            if (win) win.webContents.send(`sftp-progress-${id}`, { remotePath: normalizedRemote, progress: 100, type: 'upload' })
+                            if (win) {
+                                const progressData: SftpProgress = { remotePath: normalizedRemote, progress: 100, type: 'upload' }
+                                win.webContents.send(`sftp-progress-${id}`, progressData)
+                            }
                             resolve({ remotePath: normalizedRemote, size: stats.size })
                         }
                     })
@@ -536,13 +578,13 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return results
     })
 
-    ipcMain.handle('sftp-cancel-upload', async (_, payload: { id: string; remotePath?: string }) => {
+    ipcMain.handle('sftp-cancel-upload', async (_, payload: { id: string; remotePath?: string }): Promise<boolean> => {
         const { id } = payload
         cleanupConnection(id)
         return true
     })
 
-    ipcMain.handle('sftp-open-in-editor', async (event, payload: { id: string; remotePath: string; filename: string }) => {
+    ipcMain.handle('sftp-open-in-editor', async (event, payload: { id: string; remotePath: string; filename: string }): Promise<boolean | null> => {
         const { id, remotePath, filename } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -586,7 +628,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         return true
     })
 
-    ipcMain.handle('sftp-upload-direct', async (_, payload: { id: string; localPath: string; remotePath: string }) => {
+    ipcMain.handle('sftp-upload-direct', async (_, payload: { id: string; localPath: string; remotePath: string }): Promise<boolean> => {
         const { id, localPath, remotePath } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) throw new Error('SFTP client not found')
@@ -597,7 +639,8 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
                 else {
                     const win = getMainWindow()
                     if (win) {
-                        win.webContents.send(`sftp-progress-${id}`, { remotePath, progress: 100, type: 'upload' })
+                        const progress: SftpProgress = { remotePath, progress: 100, type: 'upload' }
+                        win.webContents.send(`sftp-progress-${id}`, progress)
                     }
                     resolve(true)
                 }
@@ -605,7 +648,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }) => {
+    ipcMain.handle('sftp-rm', async (_, payload: { id: string; path: string; isDir: boolean }): Promise<boolean | null> => {
         const { id, path, isDir } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -625,7 +668,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-mkdir', async (_, payload: { id: string; path: string }) => {
+    ipcMain.handle('sftp-mkdir', async (_, payload: { id: string; path: string }): Promise<boolean | null> => {
         const { id, path } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null
@@ -638,7 +681,7 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
         })
     })
 
-    ipcMain.handle('sftp-rename', async (_, payload: { id: string; oldPath: string; newPath: string }) => {
+    ipcMain.handle('sftp-rename', async (_, payload: { id: string; oldPath: string; newPath: string }): Promise<boolean | null> => {
         const { id, oldPath, newPath } = payload
         const sftp = sftpClients.get(id)
         if (!sftp) return null

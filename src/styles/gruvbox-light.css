@@ -10,14 +10,16 @@ body.gruvbox-light {
 }
 
 body.gruvbox-light input,
-body.gruvbox-light select {
+body.gruvbox-light select,
+body.gruvbox-light textarea {
   color: #282828 !important;
   background-color: #f2e5bc !important;
   border-color: #d5c4a1 !important;
 }
 
 body.gruvbox-light input:focus,
-body.gruvbox-light select:focus {
+body.gruvbox-light select:focus,
+body.gruvbox-light textarea:focus {
   outline: none;
   border-color: #c81e51 !important;
   background-color: #ebdbb2 !important;
@@ -35,6 +37,7 @@ body.gruvbox-light select option {
 
 .tab.active {
   background-color: var(--bg-color) !important;
+  color: #c81e51 !important;
 }
 
 .terminal-container {
