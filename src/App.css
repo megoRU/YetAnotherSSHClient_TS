@@ -139,7 +139,7 @@ input, select, button, textarea {
   font-size: var(--ui-font-size);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.2s ease;
 }
 
