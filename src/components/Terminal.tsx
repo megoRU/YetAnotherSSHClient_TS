@@ -127,6 +127,7 @@ export const TerminalComponent: React.FC<Props> = ({
     const termRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
+    const safeFitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const connIdRef = useRef<string | null>(null);
     const [status, setStatus] = useState<string>('Соединение...');
     const [retryKey, setRetryKey] = useState<number>(0);
@@ -137,16 +138,26 @@ export const TerminalComponent: React.FC<Props> = ({
 
     const safeFit = () => {
         if (isMountedRef.current && xtermRef.current && fitAddonRef.current && connIdRef.current) {
-            try {
-                fitAddonRef.current.fit();
-                ipcRenderer.send('ssh-resize', {
-                    id: connIdRef.current,
-                    cols: xtermRef.current.cols,
-                    rows: xtermRef.current.rows
-                });
-            } catch (e) {
-                console.warn('[Terminal] fit() failed:', e);
+            if (safeFitTimeoutRef.current) {
+                clearTimeout(safeFitTimeoutRef.current);
             }
+            // Small delay to ensure the container has settled after DOM changes or font loading
+            safeFitTimeoutRef.current = setTimeout(() => {
+                if (!isMountedRef.current || !xtermRef.current || !fitAddonRef.current) return;
+                try {
+                    fitAddonRef.current.fit();
+                    const { cols, rows } = xtermRef.current;
+                    if (cols > 0 && rows > 0) {
+                        ipcRenderer.send('ssh-resize', {
+                            id: connIdRef.current,
+                            cols,
+                            rows
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[Terminal] fit() failed:', e);
+                }
+            }, 50);
         }
     };
 
@@ -198,6 +209,13 @@ export const TerminalComponent: React.FC<Props> = ({
 
         xtermRef.current = term;
         fitAddonRef.current = fitAddon;
+
+        // Perform initial fit so that we have correct dimensions before connecting
+        try {
+            fitAddon.fit();
+        } catch (e) {
+            console.warn('[Terminal] Initial fit failed:', e);
+        }
 
         const resizeObserver = new ResizeObserver(() => {
             if (isMountedRef.current) {
@@ -301,6 +319,14 @@ export const TerminalComponent: React.FC<Props> = ({
         const unsubError = ipcRenderer.on(`ssh-error-${connId}`, (data: string) => onError(data));
         const unsubOSInfo = ipcRenderer.on(`ssh-os-info-${connId}`, onOSInfoReceived);
 
+        // Ensure fit is accurate after fonts are fully loaded
+        const docWithFonts = document as unknown as { fonts?: { ready: Promise<void> } };
+        docWithFonts.fonts?.ready.then(() => {
+            if (isMountedRef.current) {
+                safeFit();
+            }
+        });
+
         connect(connId);
 
         return () => {
@@ -330,6 +356,7 @@ export const TerminalComponent: React.FC<Props> = ({
             xtermRef.current.options.fontWeight = 400;
             xtermRef.current.options.fontWeightBold = 700;
             xtermRef.current.options.lineHeight = 1.2;
+            safeFit();
         }
     }, [theme, terminalFontName, terminalFontSize]);
 
@@ -340,7 +367,7 @@ export const TerminalComponent: React.FC<Props> = ({
     }, [visible]);
 
     useEffect(() => {
-        let timer: any;
+        let timer: ReturnType<typeof setInterval> | undefined;
         if ((status === 'SSH-соединение закрыто' || status.includes('Ошибка')) && wasConnectedRef.current) {
             setCountdown(5);
             timer = setInterval(() => {
